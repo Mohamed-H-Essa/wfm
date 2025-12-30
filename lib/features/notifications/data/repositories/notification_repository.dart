@@ -61,11 +61,39 @@ class NotificationRepository {
     }
   }
   
-  Future<ApiResponse<void>> markAsRead(int notificationId) async {
+  /// Mark notification(s) as read
+  /// Supports both single notification ID or multiple notification IDs
+  /// - [notificationId]: Single notification ID (optional if [notificationIds] is provided)
+  /// - [notificationIds]: List of notification IDs (optional if [notificationId] is provided)
+  Future<ApiResponse<void>> markAsRead({
+    int? notificationId,
+    List<int>? notificationIds,
+  }) async {
     try {
+      // Validate that at least one parameter is provided
+      if (notificationId == null && (notificationIds == null || notificationIds.isEmpty)) {
+        return ApiResponse(
+          success: false,
+          message: 'Either notificationId or notificationIds must be provided',
+        );
+      }
+      
+      // Prepare request data
+      Map<String, dynamic> requestData;
+      if (notificationIds != null && notificationIds.length > 1) {
+        // Multiple notifications - use notification_ids array
+        requestData = {'notification_ids': notificationIds};
+      } else if (notificationIds != null && notificationIds.length == 1) {
+        // Single notification in list - use notification_id
+        requestData = {'notification_id': notificationIds.first};
+      } else {
+        // Single notification ID
+        requestData = {'notification_id': notificationId!};
+      }
+      
       final response = await _apiClient.dio.post(
         ApiConstants.notificationsRead,
-        data: {'notification_id': notificationId},
+        data: requestData,
       );
       
       if (response.data is Map<String, dynamic>) {
@@ -96,6 +124,16 @@ class NotificationRepository {
         statusCode: e.response?.statusCode,
       );
     }
+  }
+  
+  /// Mark a single notification as read (convenience method)
+  Future<ApiResponse<void>> markAsReadSingle(int notificationId) async {
+    return markAsRead(notificationId: notificationId);
+  }
+  
+  /// Mark multiple notifications as read (convenience method)
+  Future<ApiResponse<void>> markAsReadMultiple(List<int> notificationIds) async {
+    return markAsRead(notificationIds: notificationIds);
   }
 }
 

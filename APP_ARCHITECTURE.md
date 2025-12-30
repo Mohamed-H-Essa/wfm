@@ -727,6 +727,176 @@ When identifying missing features or providing implementation guidance:
 
 ---
 
+## 🚀 Upcoming Features & Implementation Plan
+
+### Backend Implementation Required
+
+**See:** `BACKEND_IMPLEMENTATION_PLAN.md` (in web project) for complete backend API details.
+
+**Summary of Backend Work:**
+1. **Morning/Evening Form Reminders APIs**
+   - `GET /api/v1/mobile/standup/reminder-status` - Get reminder status
+   - `POST /api/v1/mobile/standup/request-reminder` - Request reminder manually
+
+2. **Check-in/Check-out Flow Integration**
+   - Update `POST /api/v1/mobile/attendance/check-in` - Add morning plan status in response
+   - Update `POST /api/v1/mobile/attendance/check-out` - Add evening summary blocking
+   - New `GET /api/v1/mobile/attendance/checkout-status` - Check if checkout allowed
+
+3. **Timesheet Integration with Morning Plan**
+   - New `GET /api/v1/mobile/timesheet/morning-plan-tasks` - Get today's plan tasks
+   - New `POST /api/v1/mobile/timesheet/start-from-plan` - Start timer from plan task
+   - New `GET /api/v1/mobile/timesheet/entries-with-plan` - Get entries with plan info
+   - New `POST /api/v1/mobile/timesheet/link-to-plan-task` - Link entry to plan task
+   - **Database:** Create linking table `tblleave_attendance_wfh_2026_timesheet_standup_links`
+
+4. **Enhanced Forgot Check-in/out**
+   - New `GET /api/v1/mobile/attendance/forgot-requests` - List requests
+   - New `GET /api/v1/mobile/attendance/forgot-request/{id}` - Get request details
+   - New `DELETE /api/v1/mobile/attendance/forgot-request/{id}` - Cancel request
+
+5. **Edit Morning Plan**
+   - New `GET /api/v1/mobile/standup/today-editable` - Check editability
+   - New `PUT /api/v1/mobile/standup/morning/{standup_id}` - Update morning plan
+
+**Critical Backend Prerequisites:**
+- **MUST DO FIRST:** Create timesheet-standup linking table
+- Add validation in web timesheet system to require morning plan (when setting enabled)
+- See `WEB_SYSTEM_BACKEND_PLAN.md` for web system changes
+
+### Mobile App Changes Required
+
+**See:** `MOBILE_APP_CHANGES_REQUIRED.md` (in web project) for complete mobile implementation details.
+
+**Summary of Mobile Work:**
+
+#### 1. Morning/Evening Reminders
+- Add reminder status provider and UI
+- Show reminder indicators on standup home screen
+- Schedule local notifications for deadlines
+- Add "Request Reminder" button
+
+#### 2. Check-in/Check-out Flow
+- **Check-in:** After successful check-in, check morning plan status from API response
+  - If `morning_plan_required == true` AND `morning_plan_submitted == false`:
+    - **Automatically redirect** to morning plan screen
+    - Show message: "Please submit your morning plan"
+    - Prevent navigation back until plan submitted
+- **Check-out:** Before check-out, call `checkout-status` API
+  - If blocked by evening summary:
+    - Disable check-out button
+    - Show blocking message
+    - Add "Complete Evening Summary" button
+    - Navigate to evening summary screen
+
+#### 3. Timesheet Integration
+- Add "Start from Plan" option in timesheet home screen
+- Fetch and display morning plan tasks
+- Start timer with selected plan task
+- Show plan task info in entries
+- Add "Link to Plan" action for existing entries
+
+#### 4. Enhanced Forgot Check-in/out
+- Create forgot requests list screen
+- Show request status (pending/approved/rejected)
+- Add cancel functionality for pending requests
+- Add request details view
+
+#### 5. Edit Morning Plan
+- Check editability status on load
+- Add "Edit" button if editable
+- Pre-fill form with existing data
+- Use PUT request for updates
+- Show edit deadline
+
+### Integration Points
+
+**Check-in Flow:**
+```
+User taps "Check In"
+  ↓
+API: POST /attendance/check-in
+  ↓
+Response includes: morning_plan_required, morning_plan_submitted
+  ↓
+If required but not submitted:
+  → Auto-navigate to Morning Plan Screen
+  → Show blocking message
+  → Prevent back navigation
+```
+
+**Check-out Flow:**
+```
+User taps "Check Out"
+  ↓
+API: GET /attendance/checkout-status
+  ↓
+If blocked:
+  → Disable check-out button
+  → Show blocking message
+  → Navigate to Evening Summary
+  ↓
+After evening summary submitted:
+  → Re-enable check-out
+  → Allow check-out
+```
+
+**Timesheet-Plan Integration:**
+```
+User starts timer
+  ↓
+Option 1: "Start New Timer" (existing)
+Option 2: "Start from Morning Plan" (new)
+  ↓
+If "Start from Plan":
+  → Fetch morning plan tasks
+  → Show task selector
+  → Start timer with selected task
+  → Link timer to plan task
+```
+
+### Implementation Priority
+
+**Phase 1 (High Priority):**
+1. Check-in/Check-out flow integration
+2. Morning/Evening reminder status
+3. Edit morning plan
+
+**Phase 2 (Medium Priority):**
+4. Timesheet integration with morning plan
+5. Enhanced forgot check-in/out
+
+**Phase 3 (Low Priority):**
+6. Request reminder manually
+7. Manual link timesheet to plan task
+
+### Key Implementation Notes
+
+**Riverpod Patterns:**
+- Use typed parameter classes for family providers (never Maps)
+- Use `FutureProvider` for async data
+- Use `StateNotifierProvider` for mutable state
+- Handle loading/error/data states with `.when()`
+
+**API Response Format:**
+- All APIs return: `{"success": true, "data": {...}, "message": "..."}`
+- Handle nullable fields safely
+- Parse types carefully (API may return numbers as strings)
+
+**Error Handling:**
+- Return empty models instead of throwing
+- Show user-friendly error messages
+- Handle network errors gracefully
+- Retry failed requests where appropriate
+
+**UI/UX:**
+- Show loading states for all async operations
+- Provide clear feedback for user actions
+- Use consistent design patterns
+- Follow IntraZero 2026 design system
+
+---
+
 **Last Updated:** December 30, 2024  
 **Maintained By:** Mobile Development Team
 

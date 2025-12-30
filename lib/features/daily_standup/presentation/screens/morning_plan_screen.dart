@@ -10,9 +10,14 @@ import '../../../../shared/widgets/project_selector.dart';
 import '../../data/models/project_model.dart';
 import '../../data/models/task_form_data.dart';
 import '../providers/standup_provider.dart';
+import '../../data/repositories/standup_repository.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/models/api_response.dart';
 
 class MorningPlanScreen extends ConsumerStatefulWidget {
-  const MorningPlanScreen({super.key});
+  final int? standupId; // If provided, we're editing an existing standup
+  
+  const MorningPlanScreen({super.key, this.standupId});
 
   @override
   ConsumerState<MorningPlanScreen> createState() => _MorningPlanScreenState();
@@ -24,12 +29,94 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
   List<TaskFormData> _tasks = [];
   List<Project> _projects = [];
   String _workType = 'OFFICE';
+  bool _isLoading = false;
+  bool _isEditMode = false;
 
   @override
   void initState() {
     super.initState();
-    _loadProjects();
-    _tasks.add(TaskFormData());
+    _isEditMode = widget.standupId != null;
+    _loadProjects().then((_) {
+      // Load existing standup after projects are loaded (for edit mode)
+      if (_isEditMode && widget.standupId != null) {
+        _loadExistingStandup();
+      }
+    });
+    if (!_isEditMode) {
+      _tasks.add(TaskFormData());
+    }
+  }
+  
+  Future<void> _loadExistingStandup() async {
+    if (widget.standupId == null) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final repository = StandupRepository(ref.read(apiClientProvider));
+      final response = await repository.getById(widget.standupId!);
+      
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        
+        // Pre-fill form with existing data
+        if (mounted) {
+          setState(() {
+            _goalsController.text = data['today_goals']?.toString() ?? '';
+            _workType = data['work_type']?.toString() ?? 'OFFICE';
+            
+            // Load existing tasks
+            if (data['tasks'] != null && data['tasks'] is Map) {
+              final tasksData = data['tasks'] as Map<String, dynamic>;
+              if (tasksData['items'] != null && tasksData['items'] is List) {
+                final items = tasksData['items'] as List<dynamic>;
+                _tasks = items.map((item) {
+                  final taskMap = item as Map<String, dynamic>;
+                  return TaskFormData(
+                    title: taskMap['title']?.toString() ?? '',
+                    priority: taskMap['priority']?.toString(),
+                    estimatedHours: taskMap['estimated_hours'] != null 
+                        ? (taskMap['estimated_hours'] is num 
+                            ? (taskMap['estimated_hours'] as num).toDouble()
+                            : double.tryParse(taskMap['estimated_hours'].toString()))
+                        : null,
+                    selectedProject: taskMap['project_id'] != null && _projects.isNotEmpty
+                        ? _projects.firstWhere(
+                            (p) => p.id == (taskMap['project_id'] is int 
+                                ? taskMap['project_id'] 
+                                : int.tryParse(taskMap['project_id'].toString())),
+                            orElse: () => _projects.first,
+                          )
+                        : null,
+                    customProjectName: taskMap['category']?.toString(),
+                  );
+                }).toList();
+              }
+            }
+            
+            if (_tasks.isEmpty) {
+              _tasks.add(TaskFormData());
+            }
+            
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -39,14 +126,26 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
   }
 
   Future<void> _loadProjects() async {
-    final projectsAsync = ref.read(standupProjectsProvider);
-    projectsAsync.whenData((projects) {
-      if (mounted) {
-        setState(() {
-          _projects = projects;
-        });
-      }
-    });
+    final projectsAsync = ref.watch(standupProjectsProvider);
+    
+    // Wait for projects to load
+    await projectsAsync.when(
+      data: (projects) {
+        if (mounted) {
+          setState(() {
+            _projects = projects;
+          });
+        }
+      },
+      loading: () {},
+      error: (_, __) {
+        if (mounted) {
+          setState(() {
+            _projects = [];
+          });
+        }
+      },
+    );
   }
 
   void _addTask() {
@@ -89,17 +188,32 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
         return taskMap;
       }).toList();
       
-      final response = await repository.submitMorning(
-        todayGoals: _goalsController.text.trim().isEmpty ? null : _goalsController.text.trim(),
-        workType: _workType,
-        tasks: tasksData,
-      );
+      ApiResponse<Map<String, dynamic>> response;
+      
+      if (_isEditMode && widget.standupId != null) {
+        // Update existing morning plan
+        response = await repository.updateMorning(
+          standupId: widget.standupId!,
+          todayGoals: _goalsController.text.trim().isEmpty ? null : _goalsController.text.trim(),
+          workType: _workType,
+          tasks: tasksData,
+        );
+      } else {
+        // Submit new morning plan
+        response = await repository.submitMorning(
+          todayGoals: _goalsController.text.trim().isEmpty ? null : _goalsController.text.trim(),
+          workType: _workType,
+          tasks: tasksData,
+        );
+      }
       
       if (response.success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Morning plan submitted successfully'),
+            SnackBar(
+              content: Text(_isEditMode 
+                  ? 'Morning plan updated successfully'
+                  : 'Morning plan submitted successfully'),
               backgroundColor: IntraZeroColors.success,
             ),
           );
@@ -109,7 +223,7 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response.message ?? 'Failed to submit morning plan'),
+              content: Text(response.message ?? 'Failed to ${_isEditMode ? 'update' : 'submit'} morning plan'),
               backgroundColor: IntraZeroColors.danger,
             ),
           );
@@ -129,14 +243,29 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: IntraZeroColors.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     return Scaffold(
       backgroundColor: IntraZeroColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: Column(
         children: [
           GradientHeader(
-            title: 'Start Your Day',
+            title: _isEditMode ? 'Edit Morning Plan' : 'Start Your Day',
             subtitle: DateFormat('EEEE, MMMM d, y').format(DateTime.now()),
-            icon: Icons.wb_sunny,
+            icon: _isEditMode ? Icons.edit : Icons.wb_sunny,
             gradient: IntraZeroColors.morningGradient,
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -231,7 +360,7 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           GradientButton(
-                            text: 'Submit',
+                            text: _isEditMode ? 'Update' : 'Submit',
                             gradient: IntraZeroColors.primaryGradient,
                             icon: Icons.check,
                             onPressed: _submit,

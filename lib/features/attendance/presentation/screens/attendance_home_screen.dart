@@ -10,6 +10,8 @@ import '../../../../core/network/api_client.dart';
 import '../providers/attendance_provider.dart';
 import 'attendance_history_screen.dart';
 import 'forgot_checkin_screen.dart';
+import '../../../daily_standup/presentation/screens/morning_plan_screen.dart';
+import '../../../daily_standup/presentation/screens/evening_summary_screen.dart';
 
 class AttendanceHomeScreen extends ConsumerStatefulWidget {
   const AttendanceHomeScreen({super.key});
@@ -90,13 +92,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                         onPressed: () => _handleCheckIn(attendanceNotifier),
                       )
                     else if (status.status == 'CHECKED_IN')
-                      GradientButton(
-                        text: 'Check Out',
-                        gradient: IntraZeroColors.eveningGradient,
-                        icon: Icons.logout,
-                        isFullWidth: true,
-                        onPressed: () => _handleCheckOut(attendanceNotifier),
-                      ),
+                      _buildCheckOutButton(attendanceNotifier),
                   ],
                 ),
               ),
@@ -141,18 +137,60 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
         // Location not available, continue without it
       }
       
-      await notifier.checkIn(
+      final responseData = await notifier.checkIn(
         latitude: position?.latitude,
         longitude: position?.longitude,
       );
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Checked in successfully'),
-            backgroundColor: IntraZeroColors.success,
-          ),
-        );
+        // Check morning plan status from response
+        if (responseData != null) {
+          final morningPlanRequired = responseData['morning_plan_required'] as bool? ?? false;
+          final morningPlanSubmitted = responseData['morning_plan_submitted'] as bool? ?? false;
+          
+          if (morningPlanRequired && !morningPlanSubmitted) {
+            // Auto-redirect to morning plan screen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const MorningPlanScreen(),
+              ),
+            ).then((_) {
+              // Refresh status after returning from morning plan
+              notifier.loadStatus();
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please submit your morning plan'),
+                backgroundColor: IntraZeroColors.warning,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          } else if (morningPlanRequired && morningPlanSubmitted) {
+            // Morning plan already submitted - show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Checked in successfully! Morning plan already submitted.'),
+                backgroundColor: IntraZeroColors.success,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Checked in successfully'),
+                backgroundColor: IntraZeroColors.success,
+              ),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Checked in successfully'),
+              backgroundColor: IntraZeroColors.success,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -168,6 +206,48 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
   
   Future<void> _handleCheckOut(AttendanceStatusNotifier notifier) async {
     try {
+      // First check if checkout is allowed
+      final checkoutStatusAsync = ref.read(checkoutStatusProvider.future);
+      final checkoutStatus = await checkoutStatusAsync;
+      
+      if (!checkoutStatus.canCheckout) {
+        // Show blocking dialog and navigate to evening summary
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Check-out Blocked'),
+              content: Text(checkoutStatus.blockingReason ?? 'Please complete your evening summary before checking out'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EveningSummaryScreen(),
+                      ),
+                    ).then((_) {
+                      // Refresh status after returning from evening summary
+                      notifier.loadStatus();
+                      ref.invalidate(checkoutStatusProvider);
+                    });
+                  },
+                  child: const Text('Complete Evening Summary'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      
+      // Checkout is allowed, proceed
       Position? position;
       try {
         position = await Geolocator.getCurrentPosition();
@@ -198,6 +278,85 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
         );
       }
     }
+  }
+  
+  Widget _buildCheckOutButton(AttendanceStatusNotifier notifier) {
+    final checkoutStatusAsync = ref.watch(checkoutStatusProvider);
+    
+    return checkoutStatusAsync.when(
+      data: (checkoutStatus) {
+        final isBlocked = !checkoutStatus.canCheckout;
+        
+        return Column(
+          children: [
+            if (isBlocked) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: IntraZeroColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: IntraZeroColors.warning),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: IntraZeroColors.warning, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        checkoutStatus.blockingReason ?? 'Please complete your evening summary before checking out',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: IntraZeroColors.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GradientButton(
+                text: 'Complete Evening Summary',
+                gradient: IntraZeroColors.eveningGradient,
+                icon: Icons.edit_note,
+                isFullWidth: true,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EveningSummaryScreen(),
+                    ),
+                  ).then((_) {
+                    notifier.loadStatus();
+                    ref.invalidate(checkoutStatusProvider);
+                  });
+                },
+              ),
+            ],
+            GradientButton(
+              text: 'Check Out',
+              gradient: IntraZeroColors.eveningGradient,
+              icon: Icons.logout,
+              isFullWidth: true,
+              onPressed: isBlocked ? null : () => _handleCheckOut(notifier),
+            ),
+          ],
+        );
+      },
+      loading: () => GradientButton(
+        text: 'Check Out',
+        gradient: IntraZeroColors.eveningGradient,
+        icon: Icons.logout,
+        isFullWidth: true,
+        onPressed: () => _handleCheckOut(notifier),
+      ),
+      error: (error, stack) => GradientButton(
+        text: 'Check Out',
+        gradient: IntraZeroColors.eveningGradient,
+        icon: Icons.logout,
+        isFullWidth: true,
+        onPressed: () => _handleCheckOut(notifier),
+      ),
+    );
   }
 
   Widget _buildTimeCard(String label, String time, IconData icon, Color color) {

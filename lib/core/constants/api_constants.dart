@@ -14,6 +14,9 @@ class ApiConstants {
   static const String attendanceHistory = '/attendance/history';
   static const String forgotCheckin = '/attendance/forgot-checkin';
   static const String forgotRequests = '/attendance/forgot-requests';
+  static const String forgotRequest = '/attendance/forgot-request';
+  static const String forgotCheckinSettings = '/attendance/forgot-checkin-settings'; // Get system settings
+  static const String checkoutStatus = '/attendance/checkout-status';
   static const String officeLocations = '/attendance/office-locations';
   
   // Timesheet
@@ -23,6 +26,10 @@ class ApiConstants {
   static const String timesheetStillWorking = '/timesheet/still-working';
   static const String timesheetEntries = '/timesheet/entries';
   static const String timesheetProjects = '/timesheet/projects';
+  static const String timesheetMorningPlanTasks = '/timesheet/morning-plan-tasks';
+  static const String timesheetStartFromPlan = '/timesheet/start-from-plan';
+  static const String timesheetEntriesWithPlan = '/timesheet/entries-with-plan';
+  static const String timesheetLinkToPlanTask = '/timesheet/link-to-plan-task';
   
   // Standup
   static const String standupStatus = '/standup/status';
@@ -33,6 +40,9 @@ class ApiConstants {
   static const String standupHistory = '/standup/history';
   static const String standupView = '/standup/view';
   static const String standupTaskUpdate = '/standup/task/update';
+  static const String standupReminderStatus = '/standup/reminder-status';
+  static const String standupRequestReminder = '/standup/request-reminder';
+  static const String standupTodayEditable = '/standup/today-editable';
   
   // Leave
   static const String leaveBalance = '/leave/balance';

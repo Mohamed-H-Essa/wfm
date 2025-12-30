@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../app/themes/colors.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -144,6 +145,97 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
+          // Mark all as read button (only show if there are unread notifications)
+          Builder(
+            builder: (context) {
+              return notificationsAsync.when(
+                data: (notificationList) {
+                  final unreadCount = notificationList.unreadCount;
+                  if (unreadCount > 0) {
+                    return IconButton(
+                      icon: const Icon(Icons.done_all),
+                      tooltip: 'Mark all as read',
+                      onPressed: () async {
+                        // Get all unread notification IDs
+                        final unreadIds = notificationList.notifications
+                            .where((n) => !n.isRead)
+                            .map((n) => n.id)
+                            .toList();
+                        
+                        if (unreadIds.isNotEmpty) {
+                          // Show loading
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Marking all as read...'),
+                                ],
+                              ),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          
+                          // Mark all as read
+                          final repository = NotificationRepository(ref.read(apiClientProvider));
+                          final response = await repository.markAsReadMultiple(unreadIds);
+                          
+                          if (response.success) {
+                            // Clear cache to force fresh fetch
+                            _notificationsCache.clear();
+                            
+                            // Invalidate all notification providers (for both list and counter)
+                            ref.invalidate(notificationsProvider(
+                              NotificationsParams(
+                                unreadOnly: _unreadOnly,
+                                page: _page,
+                              ),
+                            ));
+                            // Also invalidate the counter provider (unreadOnly: false, page: 1)
+                            ref.invalidate(notificationsProvider(
+                              NotificationsParams(
+                                unreadOnly: false,
+                                page: 1,
+                              ),
+                            ));
+                            
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${unreadIds.length} notification(s) marked as read'),
+                                  backgroundColor: IntraZeroColors.success,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(response.message ?? 'Failed to mark all as read'),
+                                  backgroundColor: IntraZeroColors.danger,
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () {
@@ -260,13 +352,27 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
             _lastMarkAsReadTime = now;
             final repository = NotificationRepository(ref.read(apiClientProvider));
-            await repository.markAsRead(notification.id);
-            ref.refresh(notificationsProvider(
-              NotificationsParams(
-                unreadOnly: _unreadOnly,
-                page: _page,
-              ),
-            ));
+            final response = await repository.markAsReadSingle(notification.id);
+            
+            if (response.success) {
+              // Clear cache to force fresh fetch
+              _notificationsCache.clear();
+              
+              // Refresh all notification providers (for both list and counter)
+              ref.refresh(notificationsProvider(
+                NotificationsParams(
+                  unreadOnly: _unreadOnly,
+                  page: _page,
+                ),
+              ));
+              // Also refresh the counter provider (unreadOnly: false, page: 1)
+              ref.refresh(notificationsProvider(
+                NotificationsParams(
+                  unreadOnly: false,
+                  page: 1,
+                ),
+              ));
+            }
           }
         }
       },
@@ -278,6 +384,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ),
       child: InkWell(
         onTap: () async {
+          // Mark as read if not already read
           if (!notification.isRead) {
             // Throttle mark as read calls
             final now = DateTime.now();
@@ -285,13 +392,58 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
               _lastMarkAsReadTime = now;
               final repository = NotificationRepository(ref.read(apiClientProvider));
-              await repository.markAsRead(notification.id);
-              ref.refresh(notificationsProvider(
-                NotificationsParams(
-                  unreadOnly: _unreadOnly,
-                  page: _page,
-                ),
-              ));
+              final response = await repository.markAsReadSingle(notification.id);
+              
+              if (response.success) {
+                // Clear cache to force fresh fetch
+                _notificationsCache.clear();
+                
+                // Invalidate all notification providers (for both list and counter)
+                ref.invalidate(notificationsProvider(
+                  NotificationsParams(
+                    unreadOnly: _unreadOnly,
+                    page: _page,
+                  ),
+                ));
+                // Also invalidate the counter provider (unreadOnly: false, page: 1)
+                ref.invalidate(notificationsProvider(
+                  NotificationsParams(
+                    unreadOnly: false,
+                    page: 1,
+                  ),
+                ));
+              }
+            }
+          }
+          
+          // Handle notification link if present
+          if (notification.data != null && notification.data!['link'] != null) {
+            final link = notification.data!['link']?.toString();
+            if (link != null && link.isNotEmpty) {
+              try {
+                final uri = Uri.parse(link);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Cannot open link: $link'),
+                        backgroundColor: IntraZeroColors.warning,
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error opening link: ${e.toString()}'),
+                      backgroundColor: IntraZeroColors.danger,
+                    ),
+                  );
+                }
+              }
             }
           }
         },

@@ -9,12 +9,20 @@ import 'core/utils/location_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
+  // Initialize Firebase (if not already initialized by native code)
+  // On iOS, Firebase is initialized in AppDelegate.swift before Flutter plugins
+  // On Android, Firebase is auto-initialized if google-services.json exists
   try {
-    await Firebase.initializeApp();
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp();
+      print('✅ Firebase initialized from Flutter');
+    } else {
+      print('ℹ️ Firebase already initialized (likely by native code)');
+    }
   } catch (e) {
     // Firebase might not be configured, continue anyway
-    print('Firebase initialization error: $e');
+    print('⚠️ Firebase initialization error: $e');
   }
   
   // Initialize Hive for local storage

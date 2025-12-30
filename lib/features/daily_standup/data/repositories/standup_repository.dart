@@ -4,6 +4,8 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../shared/models/api_response.dart';
 import '../models/project_model.dart';
 import '../models/standup_status_model.dart';
+import '../models/standup_reminder_status_model.dart';
+import '../models/standup_editability_model.dart';
 
 class StandupRepository {
   final ApiClient _apiClient;
@@ -372,6 +374,192 @@ class StandupRepository {
       return ApiResponse(
         success: false,
         message: errorMessage ?? e.error?.toString() ?? 'Failed to get standup history',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+  
+  Future<ApiResponse<StandupReminderStatusModel>> getReminderStatus() async {
+    try {
+      final response = await _apiClient.dio.get(ApiConstants.standupReminderStatus);
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: StandupReminderStatusModel.fromJson(responseMap['data'] as Map<String, dynamic>),
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to get reminder status',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: 'Invalid response format',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to get reminder status',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+  
+  Future<ApiResponse<void>> requestReminder({required String type}) async {
+    try {
+      final response = await _apiClient.dio.post(
+        ApiConstants.standupRequestReminder,
+        data: {'type': type},
+      );
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success) {
+          return ApiResponse(
+            success: true,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to request reminder',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: 'Invalid response format',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to request reminder',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+  
+  Future<ApiResponse<StandupEditabilityModel>> getEditabilityStatus() async {
+    try {
+      final response = await _apiClient.dio.get(ApiConstants.standupTodayEditable);
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: StandupEditabilityModel.fromJson(responseMap['data'] as Map<String, dynamic>),
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to get editability status',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: 'Invalid response format',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to get editability status',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+  
+  Future<ApiResponse<Map<String, dynamic>>> updateMorning({
+    required int standupId,
+    String? todayGoals,
+    required String workType,
+    required List<Map<String, dynamic>> tasks,
+    bool? hasCarryoverBlockers,
+    String? carryoverNotes,
+  }) async {
+    try {
+      final response = await _apiClient.dio.put(
+        '${ApiConstants.standupMorning}/$standupId',
+        data: {
+          if (todayGoals != null) 'today_goals': todayGoals,
+          'work_type': workType,
+          'tasks': tasks,
+          if (hasCarryoverBlockers != null) 'has_carryover_blockers': hasCarryoverBlockers,
+          if (carryoverNotes != null) 'carryover_notes': carryoverNotes,
+        },
+      );
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: responseMap['data'] as Map<String, dynamic>,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to update morning plan',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: 'Invalid response format',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to update morning plan',
         statusCode: e.response?.statusCode,
       );
     }

@@ -8,15 +8,18 @@ import FirebaseCore
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Initialize Firebase only if GoogleService-Info.plist exists
-    // This prevents crashes when Firebase config is not available
+    // Initialize Firebase FIRST, before Flutter plugins
+    // Check if GoogleService-Info.plist exists
     if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
        FileManager.default.fileExists(atPath: path) {
-      if FirebaseApp.app() == nil {
-        FirebaseApp.configure()
-      }
+      // Always configure Firebase if plist exists (FirebaseApp.configure() is safe to call multiple times)
+      FirebaseApp.configure()
+      print("✅ Firebase configured successfully from AppDelegate")
+    } else {
+      print("⚠️ GoogleService-Info.plist not found, skipping Firebase initialization")
     }
     
+    // Register Flutter plugins AFTER Firebase initialization
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

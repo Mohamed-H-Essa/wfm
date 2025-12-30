@@ -153,7 +153,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           FCMTokenService.registerToken(apiClient, deviceId: deviceId)
               .catchError((e) {
             // Silently fail - token registration is not critical for login
-            return;
+            debugPrint('FCM token registration failed: $e');
           });
           
           Navigator.pushReplacementNamed(context, AppRoutes.main);

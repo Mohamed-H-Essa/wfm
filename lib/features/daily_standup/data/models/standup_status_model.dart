@@ -6,6 +6,7 @@ class StandupStatusModel {
   final bool eveningSubmitted;
   final StandupTasksModel tasks;
   final String workType;
+  final int? standupId; // ID of the standup record
   
   StandupStatusModel({
     required this.date,
@@ -15,6 +16,7 @@ class StandupStatusModel {
     required this.eveningSubmitted,
     required this.tasks,
     required this.workType,
+    this.standupId,
   });
   
   factory StandupStatusModel.fromJson(Map<String, dynamic> json) {
@@ -30,6 +32,13 @@ class StandupStatusModel {
       return defaultValue;
     }
     
+    int? parseNullableInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+    
     return StandupStatusModel(
       date: json['date']?.toString() ?? '',
       state: json['state']?.toString() ?? '',
@@ -38,6 +47,7 @@ class StandupStatusModel {
       eveningSubmitted: parseBool(json['evening_submitted'], false),
       tasks: StandupTasksModel.fromJson(json['tasks'] as Map<String, dynamic>),
       workType: json['work_type']?.toString() ?? 'OFFICE',
+      standupId: parseNullableInt(json['standup_id'] ?? json['id']),
     );
   }
 }

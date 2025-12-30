@@ -50,6 +50,7 @@ class TimesheetEntryItemModel {
   final String durationFormatted;
   final String? description;
   final bool isBillable;
+  final StandupTaskInfo? standupTask; // Linked morning plan task
   
   TimesheetEntryItemModel({
     required this.id,
@@ -64,6 +65,7 @@ class TimesheetEntryItemModel {
     required this.durationFormatted,
     this.description,
     required this.isBillable,
+    this.standupTask,
   });
   
   factory TimesheetEntryItemModel.fromJson(Map<String, dynamic> json) {
@@ -92,6 +94,12 @@ class TimesheetEntryItemModel {
       return defaultValue;
     }
     
+    // Parse standup task if present
+    StandupTaskInfo? standupTaskData;
+    if (json['standup_task'] != null && json['standup_task'] is Map) {
+      standupTaskData = StandupTaskInfo.fromJson(json['standup_task'] as Map<String, dynamic>);
+    }
+    
     return TimesheetEntryItemModel(
       id: parseInt(json['id']),
       date: json['date']?.toString() ?? '',
@@ -105,6 +113,46 @@ class TimesheetEntryItemModel {
       durationFormatted: json['duration_formatted']?.toString() ?? '00:00:00',
       description: json['description']?.toString(),
       isBillable: _parseBool(json['is_billable'], false),
+      standupTask: standupTaskData,
+    );
+  }
+}
+
+class StandupTaskInfo {
+  final int id;
+  final String title;
+  final double? estimatedHours;
+  final double? actualHours;
+  final String status;
+  
+  StandupTaskInfo({
+    required this.id,
+    required this.title,
+    this.estimatedHours,
+    this.actualHours,
+    required this.status,
+  });
+  
+  factory StandupTaskInfo.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+    
+    double? parseNullableDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+    
+    return StandupTaskInfo(
+      id: parseInt(json['id']),
+      title: json['title']?.toString() ?? '',
+      estimatedHours: parseNullableDouble(json['estimated_hours']),
+      actualHours: parseNullableDouble(json['actual_hours']),
+      status: json['status']?.toString() ?? 'NOT_STARTED',
     );
   }
 }

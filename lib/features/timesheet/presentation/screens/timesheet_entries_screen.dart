@@ -315,6 +315,53 @@ class _TimesheetEntriesScreenState extends ConsumerState<TimesheetEntriesScreen>
               ),
             ),
           ],
+          if (entry.standupTask != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: IntraZeroColors.morningGradient.colors.first.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: IntraZeroColors.morningGradient.colors.first.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.list_alt,
+                    size: 16,
+                    color: IntraZeroColors.morningGradient.colors.first,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.standupTask!.title,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: IntraZeroColors.textPrimary,
+                          ),
+                        ),
+                        if (entry.standupTask!.estimatedHours != null || entry.standupTask!.actualHours != null)
+                          Text(
+                            'Est: ${entry.standupTask!.estimatedHours?.toStringAsFixed(1) ?? 'N/A'}h | '
+                            'Actual: ${entry.standupTask!.actualHours?.toStringAsFixed(1) ?? 'N/A'}h',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: IntraZeroColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

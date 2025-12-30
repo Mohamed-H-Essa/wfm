@@ -54,30 +54,79 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           type: BottomNavigationBarType.fixed,
           selectedItemColor: IntraZeroColors.primaryGradient.colors.first,
           unselectedItemColor: IntraZeroColors.textSecondary,
-          items: const [
-            BottomNavigationBarItem(
+          items: [
+            const BottomNavigationBarItem(
               icon: Icon(Icons.access_time),
               label: 'Attendance',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.timer),
               label: 'Timesheet',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.check_circle),
               label: 'Standup',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications),
+              icon: _buildNotificationIcon(ref),
               label: 'Notifications',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.person),
               label: 'Profile',
             ),
           ],
         ),
       ),
+    );
+  }
+  
+  Widget _buildNotificationIcon(WidgetRef ref) {
+    // Watch notifications to get unread count
+    final notificationsAsync = ref.watch(
+      notificationsProvider(
+        NotificationsParams(unreadOnly: false, page: 1),
+      ),
+    );
+    
+    return notificationsAsync.when(
+      data: (notificationList) {
+        final unreadCount = notificationList.unreadCount;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications),
+            if (unreadCount > 0)
+              Positioned(
+                right: -6,
+                top: -6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: IntraZeroColors.danger,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : unreadCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+      loading: () => const Icon(Icons.notifications),
+      error: (_, __) => const Icon(Icons.notifications),
     );
   }
 }

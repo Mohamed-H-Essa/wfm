@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/themes/colors.dart';
+import '../../../../app/themes/typography.dart';
 import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
+import '../../../../shared/widgets/gradient_button.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -81,70 +83,219 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
-                  child: GlassmorphismCard(
-                    child: Column(
-                      children: [
-                        if (user.profileImage != null)
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundImage: NetworkImage(user.profileImage!),
-                          )
-                        else
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: IntraZeroColors.primaryGradient.colors.first,
-                            child: Text(
-                              user.firstname.isNotEmpty ? user.firstname[0].toUpperCase() : '?',
-                              style: const TextStyle(fontSize: 40, color: Colors.white),
+                  child: Column(
+                    children: [
+                      // Profile Header Card
+                      GlassmorphismCard(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 20),
+                            // Profile Image
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: IntraZeroColors.primaryGradient,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: IntraZeroColors.primaryGradient.colors.first.withOpacity(0.3),
+                                    blurRadius: 20,
+                                    spreadRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: user.profileImage != null
+                                  ? CircleAvatar(
+                                      radius: 60,
+                                      backgroundImage: NetworkImage(user.profileImage!),
+                                    )
+                                  : CircleAvatar(
+                                      radius: 60,
+                                      backgroundColor: Colors.white,
+                                      child: Text(
+                                        user.firstname.isNotEmpty ? user.firstname[0].toUpperCase() : '?',
+                                        style: TextStyle(
+                                          fontSize: 48,
+                                          fontWeight: FontWeight.w700,
+                                          color: IntraZeroColors.primaryGradient.colors.first,
+                                        ),
+                                      ),
+                                    ),
                             ),
+                            const SizedBox(height: 24),
+                            // Name
+                            Text(
+                              user.fullName,
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: IntraZeroColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Email
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.email, size: 16, color: IntraZeroColors.textSecondary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  user.email,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: IntraZeroColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Information Cards
+                      if (user.department != null || user.position != null) ...[
+                        GlassmorphismCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.business, color: IntraZeroColors.primaryGradient.colors.first),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Work Information',
+                                    style: IntraZeroTypography.label,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              if (user.department != null) ...[
+                                _buildInfoRow(Icons.business_center, 'Department', user.department!),
+                                if (user.position != null) const SizedBox(height: 12),
+                              ],
+                              if (user.position != null)
+                                _buildInfoRow(Icons.work, 'Position', user.position!),
+                            ],
                           ),
+                        ),
                         const SizedBox(height: 20),
-                        Text(
-                          user.fullName,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: IntraZeroColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          user.email,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: IntraZeroColors.textSecondary,
-                          ),
-                        ),
-                        if (user.department != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            user.department!,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: IntraZeroColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 30),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final authNotifier = ref.read(currentUserProvider.notifier);
-                            await authNotifier.logout();
-                            if (context.mounted) {
-                              Navigator.pushReplacementNamed(context, AppRoutes.login);
-                            }
-                          },
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Logout'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: IntraZeroColors.danger,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
                       ],
-                    ),
+                      // Account Information
+                      GlassmorphismCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.account_circle, color: IntraZeroColors.primaryGradient.colors.first),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Account',
+                                  style: IntraZeroTypography.label,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInfoRow(Icons.person, 'Role', user.role.toUpperCase()),
+                            const SizedBox(height: 12),
+                            _buildInfoRow(Icons.tag, 'User ID', '#${user.id}'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Actions
+                      GlassmorphismCard(
+                        child: Column(
+                          children: [
+                            GradientButton(
+                              text: 'Settings',
+                              gradient: IntraZeroColors.primaryGradient,
+                              icon: Icons.settings,
+                              isFullWidth: true,
+                              onPressed: () {
+                                Navigator.pushNamed(context, AppRoutes.settings);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            GradientButton(
+                              text: 'Logout',
+                              gradient: LinearGradient(
+                                colors: [IntraZeroColors.danger, IntraZeroColors.danger.withOpacity(0.8)],
+                              ),
+                              icon: Icons.logout,
+                              isFullWidth: true,
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Logout'),
+                                    content: const Text('Are you sure you want to logout?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: IntraZeroColors.danger,
+                                        ),
+                                        child: const Text('Logout'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                
+                                if (confirm == true && mounted) {
+                                  final authNotifier = ref.read(currentUserProvider.notifier);
+                                  await authNotifier.logout();
+                                  if (context.mounted) {
+                                    Navigator.pushReplacementNamed(context, AppRoutes.login);
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                   ),
                 ),
+    );
+  }
+  
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: IntraZeroColors.textSecondary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: IntraZeroColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: IntraZeroColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

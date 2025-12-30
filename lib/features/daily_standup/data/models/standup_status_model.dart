@@ -18,14 +18,26 @@ class StandupStatusModel {
   });
   
   factory StandupStatusModel.fromJson(Map<String, dynamic> json) {
+    // Helper to parse boolean from dynamic (handles bool, String "1"/"0", int)
+    bool parseBool(dynamic value, bool defaultValue) {
+      if (value == null) return defaultValue;
+      if (value is bool) return value;
+      if (value is String) {
+        // API returns "1" for true, "0" for false
+        return value == '1' || value.toLowerCase() == 'true' || value.toLowerCase() == 'yes';
+      }
+      if (value is int) return value != 0;
+      return defaultValue;
+    }
+    
     return StandupStatusModel(
-      date: json['date'] as String,
-      state: json['state'] as String,
-      morningSubmitted: json['morning_submitted'] as bool? ?? false,
-      morningSubmittedAt: json['morning_submitted_at'] as String?,
-      eveningSubmitted: json['evening_submitted'] as bool? ?? false,
+      date: json['date']?.toString() ?? '',
+      state: json['state']?.toString() ?? '',
+      morningSubmitted: parseBool(json['morning_submitted'], false),
+      morningSubmittedAt: json['morning_submitted_at']?.toString(),
+      eveningSubmitted: parseBool(json['evening_submitted'], false),
       tasks: StandupTasksModel.fromJson(json['tasks'] as Map<String, dynamic>),
-      workType: json['work_type'] as String? ?? 'OFFICE',
+      workType: json['work_type']?.toString() ?? 'OFFICE',
     );
   }
 }
@@ -44,11 +56,18 @@ class StandupTasksModel {
   });
   
   factory StandupTasksModel.fromJson(Map<String, dynamic> json) {
+    // Handle int values that may come as String
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+    
     return StandupTasksModel(
-      total: json['total'] as int? ?? 0,
-      completed: json['completed'] as int? ?? 0,
-      inProgress: json['in_progress'] as int? ?? 0,
-      pending: json['pending'] as int? ?? 0,
+      total: parseInt(json['total']),
+      completed: parseInt(json['completed']),
+      inProgress: parseInt(json['in_progress']),
+      pending: parseInt(json['pending']),
     );
   }
 }

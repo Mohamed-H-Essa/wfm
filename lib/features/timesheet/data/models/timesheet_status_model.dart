@@ -40,14 +40,44 @@ class TimesheetEntryModel {
   });
   
   factory TimesheetEntryModel.fromJson(Map<String, dynamic> json) {
+    // Handle id as either int or String
+    int entryId;
+    if (json['id'] is int) {
+      entryId = json['id'] as int;
+    } else if (json['id'] is String) {
+      entryId = int.tryParse(json['id'] as String) ?? 0;
+    } else {
+      entryId = 0;
+    }
+    
+    // Handle task_id as either int or String
+    int? taskIdValue;
+    if (json['task_id'] != null) {
+      if (json['task_id'] is int) {
+        taskIdValue = json['task_id'] as int;
+      } else if (json['task_id'] is String) {
+        taskIdValue = int.tryParse(json['task_id'] as String);
+      }
+    }
+    
+    // Handle duration_seconds as either int or String
+    int durationSecondsValue = 0;
+    if (json['duration_seconds'] != null) {
+      if (json['duration_seconds'] is int) {
+        durationSecondsValue = json['duration_seconds'] as int;
+      } else if (json['duration_seconds'] is String) {
+        durationSecondsValue = int.tryParse(json['duration_seconds'] as String) ?? 0;
+      }
+    }
+    
     return TimesheetEntryModel(
-      id: json['id'] as int,
-      taskId: json['task_id'] as int?,
-      taskName: json['task_name'] as String?,
-      projectName: json['project_name'] as String?,
-      startedAt: json['started_at'] as String,
-      durationSeconds: json['duration_seconds'] as int? ?? 0,
-      durationFormatted: json['duration_formatted'] as String? ?? '00:00:00',
+      id: entryId,
+      taskId: taskIdValue,
+      taskName: json['task_name']?.toString(),
+      projectName: json['project_name']?.toString(),
+      startedAt: json['started_at']?.toString() ?? '',
+      durationSeconds: durationSecondsValue,
+      durationFormatted: json['duration_formatted']?.toString() ?? '00:00:00',
     );
   }
 }

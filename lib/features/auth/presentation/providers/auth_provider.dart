@@ -18,7 +18,28 @@ final currentUserProvider = StateNotifierProvider<CurrentUserNotifier, UserModel
 class CurrentUserNotifier extends StateNotifier<UserModel?> {
   final AuthRepository _authRepository;
   
-  CurrentUserNotifier(this._authRepository) : super(null);
+  CurrentUserNotifier(this._authRepository) : super(null) {
+    // Load user on initialization if token exists
+    _loadUserFromToken();
+  }
+  
+  Future<void> _loadUserFromToken() async {
+    try {
+      // Try to get profile from API if token exists
+      final apiClient = ApiClient();
+      final token = await apiClient.getAccessToken();
+      if (token != null) {
+        // Load user profile from API
+        final profileResponse = await _authRepository.getProfile();
+        if (profileResponse.success && profileResponse.data != null) {
+          state = profileResponse.data!;
+        }
+      }
+    } catch (e) {
+      // Silently fail - user will need to login again
+      // Don't print error as it's expected if token is invalid
+    }
+  }
   
   Future<bool> login({
     required String email,
@@ -27,19 +48,24 @@ class CurrentUserNotifier extends StateNotifier<UserModel?> {
     String? deviceName,
     String? fcmToken,
   }) async {
-    final response = await _authRepository.login(
-      email: email,
-      password: password,
-      deviceId: deviceId,
-      deviceName: deviceName,
-      fcmToken: fcmToken,
-    );
-    
-    if (response.success && response.data != null) {
-      state = response.data!.user;
-      return true;
+    try {
+      final response = await _authRepository.login(
+        email: email,
+        password: password,
+        deviceId: deviceId,
+        deviceName: deviceName,
+        fcmToken: fcmToken,
+      );
+      
+      if (response.success && response.data != null) {
+        state = response.data!.user;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      // Re-throw to be caught by the UI layer
+      rethrow;
     }
-    return false;
   }
   
   Future<void> logout({String? deviceId}) async {
@@ -49,6 +75,17 @@ class CurrentUserNotifier extends StateNotifier<UserModel?> {
   
   void setUser(UserModel user) {
     state = user;
+  }
+  
+  Future<void> refreshUser() async {
+    try {
+      final profileResponse = await _authRepository.getProfile();
+      if (profileResponse.success && profileResponse.data != null) {
+        state = profileResponse.data!;
+      }
+    } catch (e) {
+      print('Failed to refresh user: $e');
+    }
   }
 }
 

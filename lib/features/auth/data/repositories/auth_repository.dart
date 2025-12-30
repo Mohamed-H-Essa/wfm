@@ -29,7 +29,20 @@ class AuthRepository {
         },
       );
       
-      final loginData = LoginResponseModel.fromJson(response.data['data']);
+      // Handle response data - check if it's nested in 'data' or direct
+      final responseData = response.data is Map<String, dynamic> 
+          ? (response.data['data'] ?? response.data)
+          : response.data;
+      
+      if (responseData == null) {
+        return ApiResponse(
+          success: false,
+          message: 'Invalid response format',
+          statusCode: response.statusCode,
+        );
+      }
+      
+      final loginData = LoginResponseModel.fromJson(responseData as Map<String, dynamic>);
       
       // Store tokens
       await _apiClient.setAccessToken(loginData.accessToken);
@@ -87,6 +100,51 @@ class AuthRepository {
       return ApiResponse(
         success: false,
         message: e.error?.toString() ?? 'Token refresh failed',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+  
+  Future<ApiResponse<UserModel>> getProfile() async {
+    try {
+      final response = await _apiClient.dio.get(ApiConstants.profile);
+      
+      // Handle API response structure: {"success": true, "data": {...}}
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          final userData = responseMap['data'] as Map<String, dynamic>;
+          final user = UserModel.fromJson(userData);
+          return ApiResponse(
+            success: true,
+            data: user,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to get profile',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: 'Invalid response format',
+        statusCode: response.statusCode,
+      );
+    } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
+      return ApiResponse(
+        success: false,
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to get profile',
         statusCode: e.response?.statusCode,
       );
     }

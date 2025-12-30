@@ -11,6 +11,8 @@ import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../providers/auth_provider.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/notification_service.dart';
+import '../../../../core/utils/fcm_token_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -136,15 +138,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final deviceId = await _getDeviceId();
       final authNotifier = ref.read(currentUserProvider.notifier);
+      final apiClient = ref.read(apiClientProvider);
       
       final success = await authNotifier.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         deviceId: deviceId,
+        fcmToken: null, // Don't send in login - register separately with throttling
       );
       
       if (mounted) {
         if (success) {
+          // Register FCM token separately with throttling (non-blocking, won't spam server)
+          FCMTokenService.registerToken(apiClient, deviceId: deviceId)
+              .catchError((e) {
+            // Silently fail - token registration is not critical for login
+            return;
+          });
+          
           Navigator.pushReplacementNamed(context, AppRoutes.main);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -157,9 +168,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Login failed';
+        if (e.toString().contains('type') && e.toString().contains('cast')) {
+          errorMessage = 'Invalid response format from server. Please try again.';
+        } else {
+          errorMessage = 'Login failed: ${e.toString()}';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login failed: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: IntraZeroColors.danger,
           ),
         );

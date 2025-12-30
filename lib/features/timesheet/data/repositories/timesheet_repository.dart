@@ -12,15 +12,40 @@ class TimesheetRepository {
   Future<ApiResponse<TimesheetStatusModel>> getStatus() async {
     try {
       final response = await _apiClient.dio.get(ApiConstants.timesheetStatus);
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: TimesheetStatusModel.fromJson(responseMap['data'] as Map<String, dynamic>),
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to get timesheet status',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
       return ApiResponse(
-        success: true,
-        data: TimesheetStatusModel.fromJson(response.data['data']),
+        success: false,
+        message: 'Invalid response format',
         statusCode: response.statusCode,
       );
     } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
       return ApiResponse(
         success: false,
-        message: e.error?.toString() ?? 'Failed to get timesheet status',
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to get timesheet status',
         statusCode: e.response?.statusCode,
       );
     }
@@ -40,15 +65,40 @@ class TimesheetRepository {
           if (description != null) 'description': description,
         },
       );
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: responseMap['data'] as Map<String, dynamic>,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to start timesheet',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
       return ApiResponse(
-        success: true,
-        data: response.data['data'] as Map<String, dynamic>,
+        success: false,
+        message: 'Invalid response format',
         statusCode: response.statusCode,
       );
     } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
       return ApiResponse(
         success: false,
-        message: e.error?.toString() ?? 'Failed to start timesheet',
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to start timesheet',
         statusCode: e.response?.statusCode,
       );
     }
@@ -66,15 +116,40 @@ class TimesheetRepository {
           if (description != null) 'description': description,
         },
       );
+      
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: responseMap['data'] as Map<String, dynamic>,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to stop timesheet',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
       return ApiResponse(
-        success: true,
-        data: response.data['data'] as Map<String, dynamic>,
+        success: false,
+        message: 'Invalid response format',
         statusCode: response.statusCode,
       );
     } on DioException catch (e) {
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
       return ApiResponse(
         success: false,
-        message: e.error?.toString() ?? 'Failed to stop timesheet',
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to stop timesheet',
         statusCode: e.response?.statusCode,
       );
     }
@@ -94,15 +169,42 @@ class TimesheetRepository {
           if (projectId != null) 'project_id': projectId,
         },
       );
+      
+      // API returns {"success": true, "data": {...}} or {"success": false, "message": "..."}
+      if (response.data is Map<String, dynamic>) {
+        final responseMap = response.data as Map<String, dynamic>;
+        final success = responseMap['success'] as bool? ?? true;
+        
+        if (success && responseMap['data'] != null) {
+          return ApiResponse(
+            success: true,
+            data: responseMap['data'] as Map<String, dynamic>,
+            statusCode: response.statusCode,
+          );
+        } else {
+          return ApiResponse(
+            success: false,
+            message: responseMap['message']?.toString() ?? 'Failed to get timesheet entries',
+            statusCode: response.statusCode,
+          );
+        }
+      }
+      
       return ApiResponse(
-        success: true,
-        data: response.data['data'] as Map<String, dynamic>,
+        success: false,
+        message: 'Invalid response format',
         statusCode: response.statusCode,
       );
     } on DioException catch (e) {
+      // Extract message from error response
+      String? errorMessage;
+      if (e.response?.data is Map<String, dynamic>) {
+        errorMessage = e.response?.data['message']?.toString();
+      }
+      
       return ApiResponse(
         success: false,
-        message: e.error?.toString() ?? 'Failed to get timesheet entries',
+        message: errorMessage ?? e.error?.toString() ?? 'Failed to get timesheet entries',
         statusCode: e.response?.statusCode,
       );
     }

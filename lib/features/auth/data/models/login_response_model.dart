@@ -14,10 +14,20 @@ class LoginResponseModel {
   });
   
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
+    // Handle expires_in as either int or String
+    int expiresInValue = 3600;
+    if (json['expires_in'] != null) {
+      if (json['expires_in'] is int) {
+        expiresInValue = json['expires_in'] as int;
+      } else if (json['expires_in'] is String) {
+        expiresInValue = int.tryParse(json['expires_in'] as String) ?? 3600;
+      }
+    }
+    
     return LoginResponseModel(
-      accessToken: json['access_token'] as String,
-      refreshToken: json['refresh_token'] as String,
-      expiresIn: json['expires_in'] as int? ?? 3600,
+      accessToken: json['access_token']?.toString() ?? '',
+      refreshToken: json['refresh_token']?.toString() ?? '',
+      expiresIn: expiresInValue,
       user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
     );
   }

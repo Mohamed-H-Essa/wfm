@@ -20,15 +20,25 @@ class UserModel {
   });
   
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Handle id as either int or String
+    int userId;
+    if (json['id'] is int) {
+      userId = json['id'] as int;
+    } else if (json['id'] is String) {
+      userId = int.tryParse(json['id'] as String) ?? 0;
+    } else {
+      userId = 0;
+    }
+    
     return UserModel(
-      id: json['id'] as int,
-      firstname: json['firstname'] as String,
-      lastname: json['lastname'] as String,
-      email: json['email'] as String,
-      profileImage: json['profile_image'] as String?,
-      role: json['role'] as String? ?? 'employee',
-      department: json['department'] as String?,
-      position: json['position'] as String?,
+      id: userId,
+      firstname: json['firstname']?.toString() ?? '',
+      lastname: json['lastname']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      profileImage: json['profile_image']?.toString(),
+      role: json['role']?.toString() ?? 'employee',
+      department: json['department']?.toString(),
+      position: json['position']?.toString(),
     );
   }
   

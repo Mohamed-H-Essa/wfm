@@ -10,19 +10,29 @@ final standupRepositoryProvider = Provider<StandupRepository>((ref) {
 });
 
 final standupProjectsProvider = FutureProvider<List<Project>>((ref) async {
-  final repository = ref.watch(standupRepositoryProvider);
-  final response = await repository.getProjects();
-  if (response.success && response.data != null) {
-    return response.data!;
+  try {
+    final repository = ref.watch(standupRepositoryProvider);
+    final response = await repository.getProjects().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => throw Exception('Request timeout'),
+    );
+    
+    if (response.success && response.data != null) {
+      return response.data!;
+    }
+  } catch (e) {
+    // Return empty list on error
+    return [];
   }
-  throw Exception(response.message ?? 'Failed to load projects');
+  
+  return [];
 });
 
-final standupStatusProvider = StateNotifierProvider<StandupStatusNotifier, AsyncValue<StandupStatusModel>>((ref) {
+final standupStatusProvider = StateNotifierProvider<StandupStatusNotifier, AsyncValue<StandupStatusModel?>>((ref) {
   return StandupStatusNotifier(ref.watch(standupRepositoryProvider));
 });
 
-class StandupStatusNotifier extends StateNotifier<AsyncValue<StandupStatusModel>> {
+class StandupStatusNotifier extends StateNotifier<AsyncValue<StandupStatusModel?>> {
   final StandupRepository _repository;
   
   StandupStatusNotifier(this._repository) : super(const AsyncValue.loading()) {
@@ -32,15 +42,20 @@ class StandupStatusNotifier extends StateNotifier<AsyncValue<StandupStatusModel>
   Future<void> loadStatus() async {
     state = const AsyncValue.loading();
     try {
-      final response = await _repository.getStatus();
+      final response = await _repository.getStatus().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception('Request timeout'),
+      );
+      
       if (response.success && response.data != null) {
         state = AsyncValue.data(response.data!);
       } else {
-        state = AsyncValue.error(response.message ?? 'Failed to load status', StackTrace.current);
+        // Return null data instead of error - let UI handle it gracefully
+        state = const AsyncValue.data(null);
       }
     } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
+      // Return null data instead of error
+      state = const AsyncValue.data(null);
     }
   }
 }
-

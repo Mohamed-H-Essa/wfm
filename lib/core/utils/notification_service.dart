@@ -8,6 +8,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   
   static bool _initialized = false;
+  static bool _permissionsRequested = false;
+  static DateTime? _lastPermissionRequest;
   
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -31,20 +33,41 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
     
-    // Request permissions
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    
-    // Request Android notification permissions (Android 13+)
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    // Request permissions only once, or if last request was more than 5 minutes ago
+    await _requestPermissionsIfNeeded();
     
     _initialized = true;
+  }
+  
+  static Future<void> _requestPermissionsIfNeeded() async {
+    // Only request permissions once, or if last request was more than 5 minutes ago
+    if (_permissionsRequested && 
+        _lastPermissionRequest != null &&
+        DateTime.now().difference(_lastPermissionRequest!).inMinutes < 5) {
+      return;
+    }
+    
+    try {
+      // Request Firebase Messaging permissions
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      
+      // Request Android notification permissions (Android 13+)
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      
+      _permissionsRequested = true;
+      _lastPermissionRequest = DateTime.now();
+    } catch (e) {
+      // Silently fail - permissions might already be granted
+      _permissionsRequested = true;
+      _lastPermissionRequest = DateTime.now();
+    }
   }
   
   static void _onNotificationTapped(NotificationResponse response) {
@@ -62,6 +85,7 @@ class NotificationService {
   
   static Future<void> scheduleCheckInReminder() async {
     if (!_initialized) await initialize();
+    // Don't request permissions again - they're already requested in initialize()
     
     // Schedule 10:50 AM reminder every day
     final now = tz.TZDateTime.now(tz.local);
@@ -113,6 +137,7 @@ class NotificationService {
   
   static Future<void> scheduleCheckOutReminder() async {
     if (!_initialized) await initialize();
+    // Don't request permissions again - they're already requested in initialize()
     
     // Schedule 5:30 PM reminder every day
     final now = tz.TZDateTime.now(tz.local);
@@ -164,6 +189,7 @@ class NotificationService {
   
   static Future<void> scheduleTimesheetReminder() async {
     if (!_initialized) await initialize();
+    // Don't request permissions again - they're already requested in initialize()
     
     // Schedule 4-hour reminder (this would need to be rescheduled after each timesheet start)
     // For now, we'll schedule it for 4 hours from now
@@ -214,6 +240,7 @@ class NotificationService {
     String? payload,
   }) async {
     if (!_initialized) await initialize();
+    // Don't request permissions again - they're already requested in initialize()
     
     const androidDetails = AndroidNotificationDetails(
       'instant_notifications',

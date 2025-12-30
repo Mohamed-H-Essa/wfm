@@ -18,18 +18,36 @@ class AttendanceStatusModel {
   });
   
   factory AttendanceStatusModel.fromJson(Map<String, dynamic> json) {
+    // Helper to parse boolean from dynamic
+    bool parseBool(dynamic value, bool defaultValue) {
+      if (value == null) return defaultValue;
+      if (value is bool) return value;
+      if (value is String) {
+        return value == '1' || value.toLowerCase() == 'true' || value.toLowerCase() == 'yes';
+      }
+      if (value is int) return value != 0;
+      return defaultValue;
+    }
+    
+    // Handle int values that may come as String
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+    
     return AttendanceStatusModel(
-      date: json['date'] as String,
-      checkIn: json['check_in'] != null
+      date: json['date']?.toString() ?? '',
+      checkIn: json['check_in'] != null && json['check_in'] is Map
           ? CheckInOutModel.fromJson(json['check_in'] as Map<String, dynamic>)
           : null,
-      checkOut: json['check_out'] != null
+      checkOut: json['check_out'] != null && json['check_out'] is Map
           ? CheckInOutModel.fromJson(json['check_out'] as Map<String, dynamic>)
           : null,
-      workHours: json['work_hours'] as String? ?? '00:00:00',
-      status: json['status'] as String,
-      isLate: json['is_late'] as bool? ?? false,
-      lateMinutes: json['late_minutes'] as int? ?? 0,
+      workHours: json['work_hours']?.toString() ?? '00:00:00',
+      status: json['status']?.toString() ?? '',
+      isLate: parseBool(json['is_late'], false),
+      lateMinutes: parseInt(json['late_minutes']),
     );
   }
 }
@@ -50,12 +68,40 @@ class CheckInOutModel {
   });
   
   factory CheckInOutModel.fromJson(Map<String, dynamic> json) {
+    // Handle time - may be just time string or full datetime
+    String timeValue = json['time']?.toString() ?? '';
+    
+    // Handle location - may be null
+    String? locationValue = json['location']?.toString();
+    
+    // Handle latitude/longitude - may be null
+    double? latValue;
+    if (json['latitude'] != null) {
+      if (json['latitude'] is num) {
+        latValue = (json['latitude'] as num).toDouble();
+      } else if (json['latitude'] is String) {
+        latValue = double.tryParse(json['latitude'] as String);
+      }
+    }
+    
+    double? lonValue;
+    if (json['longitude'] != null) {
+      if (json['longitude'] is num) {
+        lonValue = (json['longitude'] as num).toDouble();
+      } else if (json['longitude'] is String) {
+        lonValue = double.tryParse(json['longitude'] as String);
+      }
+    }
+    
+    // Method may be missing for check_out
+    String methodValue = json['method']?.toString() ?? 'GPS';
+    
     return CheckInOutModel(
-      time: json['time'] as String,
-      location: json['location'] as String?,
-      latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
-      longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
-      method: json['method'] as String? ?? 'GPS',
+      time: timeValue,
+      location: locationValue,
+      latitude: latValue,
+      longitude: lonValue,
+      method: methodValue,
     );
   }
 }

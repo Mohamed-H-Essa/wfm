@@ -6,22 +6,133 @@ import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../../../shared/widgets/progress_bar.dart';
 import '../../data/repositories/standup_repository.dart';
 import '../../data/models/standup_history_model.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../shared/models/api_response.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'standup_view_screen.dart';
 
-final standupHistoryProvider = FutureProvider.family<StandupHistoryModel, Map<String, int?>>((ref, params) async {
-  final repository = StandupRepository(ref.watch(apiClientProvider));
-  final response = await repository.getHistory(
-    month: params['month'],
-    year: params['year'],
-    page: params['page'] ?? 1,
+// Typed params class for proper equality
+@immutable
+class StandupHistoryParams {
+  final int month;
+  final int year;
+  final int page;
+
+  const StandupHistoryParams({
+    required this.month,
+    required this.year,
+    this.page = 1,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StandupHistoryParams &&
+          month == other.month &&
+          year == other.year &&
+          page == other.page;
+
+  @override
+  int get hashCode => Object.hash(month, year, page);
+}
+
+// Cache to prevent repeated API calls
+final _standupHistoryCache = <String, _StandupCache>{};
+class _StandupCache {
+  final StandupHistoryModel data;
+  final DateTime timestamp;
+  _StandupCache(this.data, this.timestamp);
+}
+const _standupCacheDuration = Duration(minutes: 5);
+
+final standupHistoryProvider = FutureProvider.family<StandupHistoryModel, StandupHistoryParams>((ref, params) async {
+  print('🚀 [STANDUP_HISTORY] Provider called with params: month=${params.month}, year=${params.year}, page=${params.page}');
+  final cacheKey = '${params.month}_${params.year}_${params.page}';
+  final cached = _standupHistoryCache[cacheKey];
+  
+  // Return cached data if still valid
+  if (cached != null && DateTime.now().difference(cached.timestamp) < _standupCacheDuration) {
+    print('💾 [STANDUP_HISTORY] Returning cached data');
+    return cached.data;
+  }
+  print('🔄 [STANDUP_HISTORY] Cache miss or expired, fetching new data');
+  
+  // Create empty model as default
+  final emptyModel = StandupHistoryModel(
+    standups: [],
+    summary: StandupHistorySummaryModel(
+      totalSubmissions: 0,
+      workingDays: 0,
+      submissionRate: 0.0,
+      averageCompletion: 0,
+      averageProductivity: 0.0,
+    ),
+    pagination: PaginationModel(
+      currentPage: 1,
+      totalPages: 1,
+      totalRecords: 0,
+    ),
   );
   
-  if (response.success && response.data != null) {
-    return StandupHistoryModel.fromJson(response.data!);
-  }
-  throw Exception(response.message ?? 'Failed to load standup history');
+  // Wrap entire operation in timeout to ensure it ALWAYS completes
+  return (() async {
+      try {
+        print('🔍 [STANDUP_HISTORY] Starting provider execution');
+        final apiClient = ref.read(apiClientProvider); // Use read instead of watch
+        print('🔍 [STANDUP_HISTORY] Got API client');
+        final token = await apiClient.getAccessToken();
+        print('🔍 [STANDUP_HISTORY] Token: ${token != null ? "exists" : "null"}');
+        if (token == null) {
+          print('⚠️ [STANDUP_HISTORY] No token, returning empty model');
+          return emptyModel;
+        }
+        
+        final repository = StandupRepository(apiClient);
+        print('🔍 [STANDUP_HISTORY] Calling repository.getHistory...');
+        
+        final response = await repository.getHistory(
+          month: params.month,
+          year: params.year,
+          page: params.page,
+        );
+        
+        print('📥 [STANDUP_HISTORY] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+        print('📥 [STANDUP_HISTORY] Response data is null: ${response.data == null}');
+        if (response.data != null) {
+          print('📥 [STANDUP_HISTORY] Response data keys: ${(response.data as Map).keys.toList()}');
+        }
+        
+        if (response.success && response.data != null) {
+          try {
+            print('📥 [STANDUP_HISTORY] Parsing data...');
+            final model = StandupHistoryModel.fromJson(response.data!);
+            print('✅ [STANDUP_HISTORY] Parsed successfully - standups: ${model.standups.length}');
+            // Cache the result
+            _standupHistoryCache[cacheKey] = _StandupCache(model, DateTime.now());
+            return model;
+          } catch (e, stack) {
+            print('❌ [STANDUP_HISTORY] Parse error: $e');
+            print('❌ [STANDUP_HISTORY] Stack: $stack');
+            print('❌ [STANDUP_HISTORY] Response data: ${response.data}');
+            return emptyModel;
+          }
+        } else {
+          print('⚠️ [STANDUP_HISTORY] Response not successful or data is null');
+          print('⚠️ [STANDUP_HISTORY] Message: ${response.message}');
+        }
+        print('⚠️ [STANDUP_HISTORY] Returning empty model (response not successful)');
+        return emptyModel;
+      } catch (e, stack) {
+        print('❌ [STANDUP_HISTORY] Exception in provider: $e');
+        print('❌ [STANDUP_HISTORY] Stack: $stack');
+        return emptyModel;
+      }
+    })().timeout(
+    const Duration(seconds: 12),
+    onTimeout: () {
+      print('⏰ [STANDUP_HISTORY] Timeout reached, returning empty model');
+      return emptyModel;
+    },
+  );
 });
 
 class StandupHistoryScreen extends ConsumerStatefulWidget {
@@ -32,62 +143,65 @@ class StandupHistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _StandupHistoryScreenState extends ConsumerState<StandupHistoryScreen> {
-  int _days = 30;
+  int _selectedMonth = DateTime.now().month;
+  int _selectedYear = DateTime.now().year;
 
   @override
   Widget build(BuildContext context) {
-    final historyAsync = ref.watch(standupHistoryProvider({
-      'days': _days,
-      'page': 1,
-    }));
+    print('🏗️ [STANDUP_HISTORY] Building widget - month: $_selectedMonth, year: $_selectedYear');
+    final historyAsync = ref.watch(
+      standupHistoryProvider(
+        StandupHistoryParams(
+          month: _selectedMonth,
+          year: _selectedYear,
+          page: 1,
+        ),
+      ),
+    );
+    print('📊 [STANDUP_HISTORY] AsyncValue state: ${historyAsync.isLoading ? "loading" : historyAsync.hasValue ? "hasValue" : historyAsync.hasError ? "hasError" : "unknown"}');
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Standup History'),
         actions: [
-          PopupMenuButton<int>(
-            onSelected: (value) {
-              setState(() {
-                _days = value;
-              });
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 7, child: Text('Last 7 days')),
-              const PopupMenuItem(value: 30, child: Text('Last 30 days')),
-              const PopupMenuItem(value: 90, child: Text('Last 90 days')),
-            ],
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () => _showMonthYearPicker(context),
           ),
         ],
       ),
       body: historyAsync.when(
-        data: (history) => SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSummaryCard(history.summary),
-              const SizedBox(height: 20),
-              _buildStandupsList(history.standups),
-            ],
-          ),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => ref.refresh(standupHistoryProvider({
-                  'days': _days,
-                  'page': 1,
-                })),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        data: (history) {
+          print('🎨 [STANDUP_HISTORY] UI rendering with data - standups: ${history.standups.length}');
+          if (history.standups.isEmpty) {
+            return const Center(
+              child: Text('No standup history found'),
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSummaryCard(history.summary),
+                const SizedBox(height: 20),
+                _buildStandupsList(history.standups),
+              ],
+            ),
+          );
+        },
+        loading: () {
+          print('⏳ [STANDUP_HISTORY] UI showing loading state');
+          return const Center(child: CircularProgressIndicator());
+        },
+        error: (error, stack) {
+          print('❌ [STANDUP_HISTORY] UI showing error: $error');
+          print('❌ [STANDUP_HISTORY] Stack: $stack');
+          // On error, show empty state instead of error message
+          return const Center(
+            child: Text('No standup history found'),
+          );
+        },
       ),
     );
   }
@@ -279,6 +393,24 @@ class _StandupHistoryScreenState extends ConsumerState<StandupHistoryScreen> {
         return IntraZeroColors.warning;
       default:
         return IntraZeroColors.textSecondary;
+    }
+  }
+
+  Future<void> _showMonthYearPicker(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(_selectedYear, _selectedMonth),
+      firstDate: DateTime(now.year - 1),
+      lastDate: now,
+      initialDatePickerMode: DatePickerMode.year,
+    );
+    
+    if (picked != null) {
+      setState(() {
+        _selectedMonth = picked.month;
+        _selectedYear = picked.year;
+      });
     }
   }
 }

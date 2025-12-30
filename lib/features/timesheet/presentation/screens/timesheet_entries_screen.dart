@@ -6,20 +6,114 @@ import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/timesheet_repository.dart';
 import '../../data/models/timesheet_entry_model.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../shared/models/api_response.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-final timesheetEntriesProvider = FutureProvider.family<TimesheetEntriesModel, Map<String, String?>>((ref, params) async {
-  final repository = TimesheetRepository(ref.watch(apiClientProvider));
-  final response = await repository.getEntries(
-    startDate: params['start_date'],
-    endDate: params['end_date'],
-    projectId: params['project_id'] != null ? int.tryParse(params['project_id']!) : null,
+// Typed params class for proper equality
+@immutable
+class TimesheetEntriesParams {
+  final String startDate;
+  final String endDate;
+  final String? projectId;
+
+  const TimesheetEntriesParams({
+    required this.startDate,
+    required this.endDate,
+    this.projectId,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimesheetEntriesParams &&
+          startDate == other.startDate &&
+          endDate == other.endDate &&
+          projectId == other.projectId;
+
+  @override
+  int get hashCode => Object.hash(startDate, endDate, projectId);
+}
+
+// Cache to prevent repeated API calls
+final _timesheetEntriesCache = <String, _TimesheetCache>{};
+class _TimesheetCache {
+  final TimesheetEntriesModel data;
+  final DateTime timestamp;
+  _TimesheetCache(this.data, this.timestamp);
+}
+const _timesheetCacheDuration = Duration(minutes: 5);
+
+final timesheetEntriesProvider = FutureProvider.family<TimesheetEntriesModel, TimesheetEntriesParams>((ref, params) async {
+  final cacheKey = '${params.startDate}_${params.endDate}_${params.projectId ?? ''}';
+  final cached = _timesheetEntriesCache[cacheKey];
+  
+  // Return cached data if still valid (less than 5 minutes old)
+  if (cached != null && DateTime.now().difference(cached.timestamp) < _timesheetCacheDuration) {
+    print('💾 [TIMESHEET_ENTRIES] Returning cached data');
+    return cached.data;
+  }
+  
+  final emptyModel = TimesheetEntriesModel(
+    entries: [],
+    summary: TimesheetSummaryModel(
+      totalDurationSeconds: 0,
+      totalDurationFormatted: '00:00:00',
+      billableDuration: '00:00:00',
+      nonBillableDuration: '00:00:00',
+    ),
   );
   
-  if (response.success && response.data != null) {
-    return TimesheetEntriesModel.fromJson(response.data!);
-  }
-  throw Exception(response.message ?? 'Failed to load timesheet entries');
+  return (() async {
+      try {
+        final apiClient = ref.read(apiClientProvider); // Use read instead of watch to prevent rebuilds
+        final token = await apiClient.getAccessToken();
+        if (token == null) {
+          return emptyModel;
+        }
+        
+        final repository = TimesheetRepository(apiClient);
+        print('🔍 [TIMESHEET_ENTRIES] Making API call - startDate: ${params.startDate}, endDate: ${params.endDate}');
+        
+        final response = await repository.getEntries(
+          startDate: params.startDate,
+          endDate: params.endDate,
+          projectId: params.projectId != null ? int.tryParse(params.projectId!) : null,
+        );
+        
+        print('📥 [TIMESHEET_ENTRIES] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+        print('📥 [TIMESHEET_ENTRIES] Response data is null: ${response.data == null}');
+        if (response.data != null) {
+          print('📥 [TIMESHEET_ENTRIES] Response data keys: ${(response.data as Map).keys.toList()}');
+        }
+        
+        if (response.success && response.data != null) {
+          try {
+            print('📥 [TIMESHEET_ENTRIES] Parsing data...');
+            final model = TimesheetEntriesModel.fromJson(response.data!);
+            print('✅ [TIMESHEET_ENTRIES] Parsed - entries: ${model.entries.length}');
+            // Cache the result
+            _timesheetEntriesCache[cacheKey] = _TimesheetCache(model, DateTime.now());
+            return model;
+          } catch (e, stack) {
+            print('❌ [TIMESHEET_ENTRIES] Parse error: $e');
+            print('❌ [TIMESHEET_ENTRIES] Stack: $stack');
+            print('❌ [TIMESHEET_ENTRIES] Response data: ${response.data}');
+            return emptyModel;
+          }
+        } else {
+          print('⚠️ [TIMESHEET_ENTRIES] Response not successful or data is null');
+          print('⚠️ [TIMESHEET_ENTRIES] Message: ${response.message}');
+        }
+        return emptyModel;
+      } catch (e) {
+        return emptyModel;
+      }
+    })().timeout(
+    const Duration(seconds: 12),
+    onTimeout: () {
+      return emptyModel;
+    },
+  );
 });
 
 class TimesheetEntriesScreen extends ConsumerStatefulWidget {
@@ -35,15 +129,26 @@ class _TimesheetEntriesScreenState extends ConsumerState<TimesheetEntriesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final entriesAsync = ref.watch(timesheetEntriesProvider({
-      'start_date': DateFormat('yyyy-MM-dd').format(_startDate),
-      'end_date': DateFormat('yyyy-MM-dd').format(_endDate),
-    }));
+    final params = TimesheetEntriesParams(
+      startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+      endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+    );
+    
+    final entriesAsync = ref.watch(timesheetEntriesProvider(params));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Timesheet Entries'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              // Clear cache and refresh
+              final cacheKey = '${params.startDate}_${params.endDate}_${params.projectId ?? ''}';
+              _timesheetEntriesCache.remove(cacheKey);
+              ref.invalidate(timesheetEntriesProvider(params));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.date_range),
             onPressed: () => _showDateRangePicker(context),
@@ -51,34 +156,32 @@ class _TimesheetEntriesScreenState extends ConsumerState<TimesheetEntriesScreen>
         ],
       ),
       body: entriesAsync.when(
-        data: (entries) => SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSummaryCard(entries.summary),
-              const SizedBox(height: 20),
-              _buildEntriesList(entries.entries),
-            ],
-          ),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => ref.refresh(timesheetEntriesProvider({
-                  'start_date': DateFormat('yyyy-MM-dd').format(_startDate),
-                  'end_date': DateFormat('yyyy-MM-dd').format(_endDate),
-                })),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        data: (entries) {
+          print('🎨 [TIMESHEET_ENTRIES] UI rendering with data - entries: ${entries.entries.length}');
+          if (entries.entries.isEmpty) {
+            return const Center(child: Text('No timesheet entries found'));
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSummaryCard(entries.summary),
+                const SizedBox(height: 20),
+                _buildEntriesList(entries.entries),
+              ],
+            ),
+          );
+        },
+        loading: () {
+          print('⏳ [TIMESHEET_ENTRIES] UI showing loading state');
+          return const Center(child: CircularProgressIndicator());
+        },
+        error: (error, stack) {
+          print('❌ [TIMESHEET_ENTRIES] UI showing error: $error');
+          print('❌ [TIMESHEET_ENTRIES] Stack: $stack');
+          return const Center(child: Text('No timesheet entries found'));
+        },
       ),
     );
   }
@@ -97,19 +200,7 @@ class _TimesheetEntriesScreenState extends ConsumerState<TimesheetEntriesScreen>
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatItem('Total', summary.totalDurationFormatted, IntraZeroColors.info),
-              ),
-              Expanded(
-                child: _buildStatItem('Billable', summary.billableDuration, IntraZeroColors.success),
-              ),
-              Expanded(
-                child: _buildStatItem('Non-Billable', summary.nonBillableDuration, IntraZeroColors.textSecondary),
-              ),
-            ],
-          ),
+          _buildStatItem('Total Duration', summary.totalDurationFormatted, IntraZeroColors.info),
         ],
       ),
     );
@@ -173,35 +264,13 @@ class _TimesheetEntriesScreenState extends ConsumerState<TimesheetEntriesScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  entry.taskName ?? 'General Work',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: IntraZeroColors.textPrimary,
-                  ),
-                ),
-              ),
-              if (entry.isBillable)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: IntraZeroColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Billable',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: IntraZeroColors.success,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
+          Text(
+            entry.taskName ?? 'General Work',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: IntraZeroColors.textPrimary,
+            ),
           ),
           if (entry.projectName != null) ...[
             const SizedBox(height: 4),

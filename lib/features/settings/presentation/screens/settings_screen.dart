@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../app/themes/colors.dart';
+import '../../../../app/routes/app_routes.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../../../core/network/api_client.dart';
@@ -261,6 +262,67 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Could not open terms of service')),
                             );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GlassmorphismCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Account',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: IntraZeroColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ListTile(
+                        leading: const Icon(Icons.logout, color: IntraZeroColors.danger),
+                        title: const Text(
+                          'Logout',
+                          style: TextStyle(
+                            color: IntraZeroColors.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onTap: () async {
+                          final shouldLogout = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Logout'),
+                              content: const Text('Are you sure you want to logout?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: IntraZeroColors.danger,
+                                  ),
+                                  child: const Text('Logout'),
+                                ),
+                              ],
+                            ),
+                          );
+                          
+                          if (shouldLogout == true && mounted) {
+                            final authNotifier = ref.read(currentUserProvider.notifier);
+                            await authNotifier.logout();
+                            if (mounted) {
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                AppRoutes.login,
+                                (route) => false,
+                              );
+                            }
                           }
                         },
                       ),

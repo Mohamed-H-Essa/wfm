@@ -44,14 +44,14 @@ class _LeaveHomeScreenState extends ConsumerState<LeaveHomeScreen> {
           children: [
             balanceAsync.when(
               data: (balance) => _buildBalanceCard(balance),
-              loading: () => const CircularProgressIndicator(),
-              error: (error, stack) => Text('Error: $error'),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => const Center(child: Text('Unable to load leave balance')),
             ),
             const SizedBox(height: 20),
             requestsAsync.when(
               data: (requests) => _buildRequestsList(requests),
-              loading: () => const CircularProgressIndicator(),
-              error: (error, stack) => Text('Error: $error'),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => const Center(child: Text('No leave requests')),
             ),
           ],
         ),

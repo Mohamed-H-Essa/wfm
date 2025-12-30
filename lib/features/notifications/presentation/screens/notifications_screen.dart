@@ -6,19 +6,115 @@ import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/models/notification_model.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../shared/models/api_response.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-final notificationsProvider = FutureProvider.family<NotificationListModel, Map<String, dynamic>>((ref, params) async {
-  final repository = NotificationRepository(ref.watch(apiClientProvider));
-  final response = await repository.getNotifications(
-    unreadOnly: params['unread_only'] as bool? ?? false,
-    page: params['page'] as int? ?? 1,
+// Typed params class for proper equality
+@immutable
+class NotificationsParams {
+  final bool unreadOnly;
+  final int page;
+
+  const NotificationsParams({
+    this.unreadOnly = false,
+    this.page = 1,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationsParams &&
+          unreadOnly == other.unreadOnly &&
+          page == other.page;
+
+  @override
+  int get hashCode => Object.hash(unreadOnly, page);
+}
+
+// Cache for notifications to prevent frequent API calls (1 hour cache)
+class _NotificationCache {
+  final NotificationListModel data;
+  final DateTime timestamp;
+  _NotificationCache(this.data, this.timestamp);
+}
+
+final _notificationsCache = <String, _NotificationCache>{};
+const Duration _cacheDuration = Duration(hours: 1);
+
+final notificationsProvider = FutureProvider.family<NotificationListModel, NotificationsParams>((ref, params) async {
+  final cacheKey = '${params.unreadOnly}_${params.page}';
+  final cached = _notificationsCache[cacheKey];
+  
+  // Return cached data if still valid (less than 1 hour old)
+  if (cached != null && DateTime.now().difference(cached.timestamp) < _cacheDuration) {
+    return cached.data;
+  }
+  
+  // Return empty model instead of throwing
+  final emptyData = NotificationListModel(
+    notifications: [],
+    unreadCount: 0,
+    pagination: PaginationModel(
+      currentPage: 1,
+      totalPages: 1,
+      totalRecords: 0,
+    ),
   );
   
-  if (response.success && response.data != null) {
-    return NotificationListModel.fromJson(response.data!);
-  }
-  throw Exception(response.message ?? 'Failed to load notifications');
+  return (() async {
+    try {
+      final repository = NotificationRepository(ref.read(apiClientProvider));
+      final response = await repository.getNotifications(
+        unreadOnly: params.unreadOnly,
+        page: params.page,
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Request timeout',
+          statusCode: null,
+        ),
+      );
+      
+      print('📥 [NOTIFICATIONS] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+      print('📥 [NOTIFICATIONS] Response data is null: ${response.data == null}');
+      if (response.data != null) {
+        print('📥 [NOTIFICATIONS] Response data keys: ${(response.data as Map).keys.toList()}');
+      }
+      
+      if (response.success && response.data != null) {
+        try {
+          print('📥 [NOTIFICATIONS] Parsing data...');
+          final data = NotificationListModel.fromJson(response.data!);
+          print('✅ [NOTIFICATIONS] Parsed successfully - notifications: ${data.notifications.length}');
+          // Cache the result
+          _notificationsCache[cacheKey] = _NotificationCache(data, DateTime.now());
+          return data;
+        } catch (e, stack) {
+          print('❌ [NOTIFICATIONS] Parse error: $e');
+          print('❌ [NOTIFICATIONS] Stack: $stack');
+          print('❌ [NOTIFICATIONS] Response data: ${response.data}');
+          // Return empty model if parsing fails
+        }
+      } else {
+        print('⚠️ [NOTIFICATIONS] Response not successful or data is null');
+        print('⚠️ [NOTIFICATIONS] Message: ${response.message}');
+      }
+    } catch (e, stack) {
+      print('❌ [NOTIFICATIONS] Exception: $e');
+      print('❌ [NOTIFICATIONS] Stack: $stack');
+      // Silently handle errors
+    }
+    
+    _notificationsCache[cacheKey] = _NotificationCache(emptyData, DateTime.now());
+    return emptyData;
+  })().timeout(
+    const Duration(seconds: 12),
+    onTimeout: () {
+      _notificationsCache[cacheKey] = _NotificationCache(emptyData, DateTime.now());
+      return emptyData;
+    },
+  );
 });
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -31,13 +127,18 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _unreadOnly = false;
   int _page = 1;
+  DateTime? _lastRefreshTime;
+  DateTime? _lastMarkAsReadTime;
+  static const Duration _minRefreshInterval = Duration(minutes: 1); // Minimum 1 minute between refreshes
+  static const Duration _minMarkAsReadInterval = Duration(seconds: 2); // Minimum 2 seconds between mark as read calls
 
   @override
   Widget build(BuildContext context) {
-    final notificationsAsync = ref.watch(notificationsProvider({
-      'unread_only': _unreadOnly,
-      'page': _page,
-    }));
+    final params = NotificationsParams(
+      unreadOnly: _unreadOnly,
+      page: _page,
+    );
+    final notificationsAsync = ref.watch(notificationsProvider(params));
 
     return Scaffold(
       appBar: AppBar(
@@ -55,20 +156,34 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              ref.refresh(notificationsProvider({
-                'unread_only': _unreadOnly,
-                'page': _page,
-              }));
+              // Throttle refresh - only allow refresh if enough time has passed (1 hour for cache)
+              final now = DateTime.now();
+              final refreshParams = NotificationsParams(
+                unreadOnly: _unreadOnly,
+                page: _page,
+              );
+              final cacheKey = '${_unreadOnly}_$_page';
+              final cached = _notificationsCache[cacheKey];
+              
+              // Clear cache if it's been more than 1 hour, or force refresh
+              if (cached == null || now.difference(cached.timestamp) >= _cacheDuration) {
+                _lastRefreshTime = now;
+                // Clear cache to force fresh fetch
+                _notificationsCache.remove(cacheKey);
+                ref.refresh(notificationsProvider(refreshParams));
+              }
             },
           ),
         ],
       ),
       body: notificationsAsync.when(
-        data: (notificationList) => notificationList.notifications.isEmpty
-            ? const Center(
-                child: Text('No notifications'),
-              )
-            : Column(
+        data: (notificationList) {
+          print('🎨 [NOTIFICATIONS] UI rendering with data - notifications: ${notificationList.notifications.length}');
+          return notificationList.notifications.isEmpty
+              ? const Center(
+                  child: Text('No notifications'),
+                )
+              : Column(
                 children: [
                   if (notificationList.unreadCount > 0)
                     Container(
@@ -95,24 +210,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ),
                   ),
                 ],
-              ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => ref.refresh(notificationsProvider({
-                  'unread_only': _unreadOnly,
-                  'page': _page,
-                })),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+              );
+        },
+        loading: () {
+          print('⏳ [NOTIFICATIONS] UI showing loading state');
+          return const Center(child: CircularProgressIndicator());
+        },
+        error: (error, stack) {
+          print('❌ [NOTIFICATIONS] UI showing error: $error');
+          print('❌ [NOTIFICATIONS] Stack: $stack');
+          return const Center(child: Text('No notifications'));
+        },
       ),
     );
   }
@@ -146,12 +254,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       direction: DismissDirection.endToStart,
       onDismissed: (direction) async {
         if (!notification.isRead) {
-          final repository = NotificationRepository(ref.read(apiClientProvider));
-          await repository.markAsRead(notification.id);
-          ref.refresh(notificationsProvider({
-            'unread_only': _unreadOnly,
-            'page': _page,
-          }));
+          // Throttle mark as read calls
+          final now = DateTime.now();
+          if (_lastMarkAsReadTime == null || 
+              now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
+            _lastMarkAsReadTime = now;
+            final repository = NotificationRepository(ref.read(apiClientProvider));
+            await repository.markAsRead(notification.id);
+            ref.refresh(notificationsProvider(
+              NotificationsParams(
+                unreadOnly: _unreadOnly,
+                page: _page,
+              ),
+            ));
+          }
         }
       },
       background: Container(
@@ -163,12 +279,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: InkWell(
         onTap: () async {
           if (!notification.isRead) {
-            final repository = NotificationRepository(ref.read(apiClientProvider));
-            await repository.markAsRead(notification.id);
-            ref.refresh(notificationsProvider({
-              'unread_only': _unreadOnly,
-              'page': _page,
-            }));
+            // Throttle mark as read calls
+            final now = DateTime.now();
+            if (_lastMarkAsReadTime == null || 
+                now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
+              _lastMarkAsReadTime = now;
+              final repository = NotificationRepository(ref.read(apiClientProvider));
+              await repository.markAsRead(notification.id);
+              ref.refresh(notificationsProvider(
+                NotificationsParams(
+                  unreadOnly: _unreadOnly,
+                  page: _page,
+                ),
+              ));
+            }
           }
         },
         child: Container(

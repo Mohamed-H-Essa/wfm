@@ -6,20 +6,113 @@ import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/attendance_repository.dart';
 import '../../data/models/attendance_history_model.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../shared/models/api_response.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
-final attendanceHistoryProvider = FutureProvider.family<AttendanceHistoryModel, Map<String, int?>>((ref, params) async {
-  final repository = AttendanceRepository(ref.watch(apiClientProvider));
-  final response = await repository.getHistory(
-    month: params['month'],
-    year: params['year'],
-    page: params['page'] ?? 1,
+// Typed params class for proper equality
+@immutable
+class AttendanceHistoryParams {
+  final int month;
+  final int year;
+  final int page;
+
+  const AttendanceHistoryParams({
+    required this.month,
+    required this.year,
+    this.page = 1,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AttendanceHistoryParams &&
+          month == other.month &&
+          year == other.year &&
+          page == other.page;
+
+  @override
+  int get hashCode => Object.hash(month, year, page);
+}
+
+// Cache to prevent repeated API calls
+final _attendanceHistoryCache = <String, _AttendanceCache>{};
+class _AttendanceCache {
+  final AttendanceHistoryModel data;
+  final DateTime timestamp;
+  _AttendanceCache(this.data, this.timestamp);
+}
+const _attendanceCacheDuration = Duration(minutes: 5);
+
+final attendanceHistoryProvider = FutureProvider.family<AttendanceHistoryModel, AttendanceHistoryParams>((ref, params) async {
+  final cacheKey = '${params.month}_${params.year}_${params.page}';
+  final cached = _attendanceHistoryCache[cacheKey];
+  
+  // Return cached data if still valid
+  if (cached != null && DateTime.now().difference(cached.timestamp) < _attendanceCacheDuration) {
+    return cached.data;
+  }
+  final emptyModel = AttendanceHistoryModel(
+    records: [],
+    summary: AttendanceSummaryModel(
+      totalDays: 0,
+      presentDays: 0,
+      absentDays: 0,
+      lateDays: 0,
+      totalWorkHours: '00:00:00',
+      averageWorkHours: '00:00:00',
+    ),
+    pagination: PaginationModel(
+      currentPage: 1,
+      totalPages: 1,
+      totalRecords: 0,
+    ),
   );
   
-  if (response.success && response.data != null) {
-    return AttendanceHistoryModel.fromJson(response.data!);
-  }
-  throw Exception(response.message ?? 'Failed to load attendance history');
+  return (() async {
+      try {
+        final apiClient = ref.read(apiClientProvider); // Use read instead of watch
+        final token = await apiClient.getAccessToken();
+        if (token == null) {
+          return emptyModel;
+        }
+        
+        final repository = AttendanceRepository(apiClient);
+        
+        final response = await repository.getHistory(
+          month: params.month,
+          year: params.year,
+          page: params.page,
+        );
+        
+        print('📥 [ATTENDANCE_HISTORY] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+        print('📥 [ATTENDANCE_HISTORY] Response data is null: ${response.data == null}');
+        
+        if (response.success && response.data != null) {
+          try {
+            print('📥 [ATTENDANCE_HISTORY] Parsing data...');
+            final model = AttendanceHistoryModel.fromJson(response.data!);
+            print('✅ [ATTENDANCE_HISTORY] Parsed successfully - records: ${model.records.length}');
+            // Cache the result
+            _attendanceHistoryCache[cacheKey] = _AttendanceCache(model, DateTime.now());
+            return model;
+          } catch (e, stack) {
+            print('❌ [ATTENDANCE_HISTORY] Parse error: $e');
+            print('❌ [ATTENDANCE_HISTORY] Stack: $stack');
+            print('❌ [ATTENDANCE_HISTORY] Response data: ${response.data}');
+            return emptyModel;
+          }
+        } else {
+          print('⚠️ [ATTENDANCE_HISTORY] Response not successful or data is null');
+          print('⚠️ [ATTENDANCE_HISTORY] Message: ${response.message}');
+        }
+        return emptyModel;
+      } catch (e) {
+        return emptyModel;
+      }
+    })().timeout(
+    const Duration(seconds: 12),
+    onTimeout: () => emptyModel,
+  );
 });
 
 class AttendanceHistoryScreen extends ConsumerStatefulWidget {
@@ -35,11 +128,15 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
 
   @override
   Widget build(BuildContext context) {
-    final historyAsync = ref.watch(attendanceHistoryProvider({
-      'month': _selectedMonth,
-      'year': _selectedYear,
-      'page': 1,
-    }));
+    final historyAsync = ref.watch(
+      attendanceHistoryProvider(
+        AttendanceHistoryParams(
+          month: _selectedMonth,
+          year: _selectedYear,
+          page: 1,
+        ),
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -52,35 +149,31 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
         ],
       ),
       body: historyAsync.when(
-        data: (history) => SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSummaryCard(history.summary),
-              const SizedBox(height: 20),
-              _buildRecordsList(history.records),
-            ],
-          ),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => ref.refresh(attendanceHistoryProvider({
-                  'month': _selectedMonth,
-                  'year': _selectedYear,
-                  'page': 1,
-                })),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        data: (history) {
+          print('🎨 [ATTENDANCE_HISTORY] UI rendering with data - records: ${history.records.length}');
+          if (history.records.isEmpty) {
+            return const Center(child: Text('No attendance records found'));
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSummaryCard(history.summary),
+                const SizedBox(height: 20),
+                _buildRecordsList(history.records),
+              ],
+            ),
+          );
+        },
+        loading: () {
+          print('⏳ [ATTENDANCE_HISTORY] UI showing loading state');
+          return const Center(child: CircularProgressIndicator());
+        },
+        error: (error, stack) {
+          print('❌ [ATTENDANCE_HISTORY] UI showing error: $error');
+          return const Center(child: Text('No attendance records found'));
+        },
       ),
     );
   }

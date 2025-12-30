@@ -52,99 +52,138 @@ class _StandupHomeScreenState extends ConsumerState<StandupHomeScreen> {
         ],
       ),
       body: standupStatus.when(
-        data: (status) => SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              GlassmorphismCard(
-                child: Column(
-                  children: [
-                    if (status != null && !status.morningSubmitted)
-                      GradientButton(
-                        text: 'Submit Morning Plan',
-                        gradient: IntraZeroColors.morningGradient,
-                        icon: Icons.wb_sunny,
-                        isFullWidth: true,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const MorningPlanScreen()),
-                          ).then((_) {
-                            standupNotifier.loadStatus();
-                          });
-                        },
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: IntraZeroColors.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
+        data: (status) {
+          // Handle null status - show submit morning plan button
+          if (status == null) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  GlassmorphismCard(
+                    child: Column(
+                      children: [
+                        GradientButton(
+                          text: 'Submit Morning Plan',
+                          gradient: IntraZeroColors.morningGradient,
+                          icon: Icons.wb_sunny,
+                          isFullWidth: true,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MorningPlanScreen()),
+                            ).then((_) {
+                              standupNotifier.loadStatus();
+                            });
+                          },
                         ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.check_circle, color: IntraZeroColors.success),
-                            SizedBox(width: 12),
-                            Text('Morning plan submitted'),
-                          ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                GlassmorphismCard(
+                  child: Column(
+                    children: [
+                      if (!status.morningSubmitted)
+                        GradientButton(
+                          text: 'Submit Morning Plan',
+                          gradient: IntraZeroColors.morningGradient,
+                          icon: Icons.wb_sunny,
+                          isFullWidth: true,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MorningPlanScreen()),
+                            ).then((_) {
+                              standupNotifier.loadStatus();
+                            });
+                          },
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: IntraZeroColors.success.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.check_circle, color: IntraZeroColors.success),
+                              SizedBox(width: 12),
+                              Text('Morning plan submitted'),
+                            ],
+                          ),
                         ),
-                      ),
-                    if (status != null && status.morningSubmitted && !status.eveningSubmitted) ...[
-                      const SizedBox(height: 20),
-                      GradientButton(
-                        text: 'Submit Evening Summary',
-                        gradient: IntraZeroColors.eveningGradient,
-                        icon: Icons.nightlight,
-                        isFullWidth: true,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const EveningSummaryScreen()),
-                          ).then((_) {
-                            standupNotifier.loadStatus();
-                          });
-                        },
-                      ),
+                      if (status.morningSubmitted && !status.eveningSubmitted) ...[
+                        const SizedBox(height: 20),
+                        GradientButton(
+                          text: 'Submit Evening Summary',
+                          gradient: IntraZeroColors.eveningGradient,
+                          icon: Icons.nightlight,
+                          isFullWidth: true,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const EveningSummaryScreen()),
+                            ).then((_) {
+                              standupNotifier.loadStatus();
+                            });
+                          },
+                        ),
+                      ],
+                      if (status.eveningSubmitted) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: IntraZeroColors.completeGradient.colors.first.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: IntraZeroColors.completeGradient.colors.first),
+                              const SizedBox(width: 12),
+                              const Text('Standup complete for today'),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (status.morningSubmitted) ...[
+                        const SizedBox(height: 20),
+                        _buildTaskStats(status.tasks),
+                      ],
                     ],
-                    if (status != null && status.eveningSubmitted) ...[
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: IntraZeroColors.completeGradient.colors.first.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: IntraZeroColors.completeGradient.colors.first),
-                            const SizedBox(width: 12),
-                            const Text('Standup complete for today'),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (status != null && status.morningSubmitted) ...[
-                      const SizedBox(height: 20),
-                      _buildTaskStats(status.tasks),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => standupNotifier.loadStatus(),
-                child: const Text('Retry'),
-              ),
-            ],
+        error: (error, stack) => SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: GlassmorphismCard(
+            child: GradientButton(
+              text: 'Submit Morning Plan',
+              gradient: IntraZeroColors.morningGradient,
+              icon: Icons.wb_sunny,
+              isFullWidth: true,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MorningPlanScreen()),
+                ).then((_) {
+                  standupNotifier.loadStatus();
+                });
+              },
+            ),
           ),
         ),
       ),

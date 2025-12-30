@@ -10,12 +10,47 @@ class AttendanceHistoryModel {
   });
   
   factory AttendanceHistoryModel.fromJson(Map<String, dynamic> json) {
-    return AttendanceHistoryModel(
-      records: (json['records'] as List<dynamic>)
+    // Handle records list - may be null or empty
+    List<AttendanceRecordModel> recordsList = [];
+    if (json['records'] != null && json['records'] is List) {
+      recordsList = (json['records'] as List<dynamic>)
           .map((r) => AttendanceRecordModel.fromJson(r as Map<String, dynamic>))
-          .toList(),
-      summary: AttendanceSummaryModel.fromJson(json['summary'] as Map<String, dynamic>),
-      pagination: PaginationModel.fromJson(json['pagination'] as Map<String, dynamic>),
+          .toList();
+    }
+    
+    // Handle summary - may be null
+    AttendanceSummaryModel? summaryData;
+    if (json['summary'] != null && json['summary'] is Map) {
+      summaryData = AttendanceSummaryModel.fromJson(json['summary'] as Map<String, dynamic>);
+    } else {
+      // Create default summary if missing
+      summaryData = AttendanceSummaryModel(
+        totalDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateDays: 0,
+        totalWorkHours: '00:00:00',
+        averageWorkHours: '00:00:00',
+      );
+    }
+    
+    // Handle pagination - may be null
+    PaginationModel? paginationData;
+    if (json['pagination'] != null && json['pagination'] is Map) {
+      paginationData = PaginationModel.fromJson(json['pagination'] as Map<String, dynamic>);
+    } else {
+      // Create default pagination if missing
+      paginationData = PaginationModel(
+        currentPage: 1,
+        totalPages: 1,
+        totalRecords: recordsList.length,
+      );
+    }
+    
+    return AttendanceHistoryModel(
+      records: recordsList,
+      summary: summaryData,
+      pagination: paginationData,
     );
   }
 }
@@ -42,15 +77,27 @@ class AttendanceRecordModel {
   });
   
   factory AttendanceRecordModel.fromJson(Map<String, dynamic> json) {
+    // Helper to parse boolean from dynamic (handles bool, String, int)
+    bool parseBool(dynamic value, bool defaultValue) {
+      if (value == null) return defaultValue;
+      if (value is bool) return value;
+      if (value is String) {
+        final lower = value.toLowerCase();
+        return lower == 'true' || lower == '1' || lower == 'yes';
+      }
+      if (value is int) return value != 0;
+      return defaultValue;
+    }
+    
     return AttendanceRecordModel(
-      date: json['date'] as String,
-      checkIn: json['check_in'] as String?,
-      checkOut: json['check_out'] as String?,
-      workHours: json['work_hours'] as String? ?? '00:00:00',
-      status: json['status'] as String,
-      isLate: json['is_late'] as bool? ?? false,
-      isEarlyDeparture: json['is_early_departure'] as bool? ?? false,
-      overtime: json['overtime'] as String? ?? '00:00:00',
+      date: json['date']?.toString() ?? '',
+      checkIn: json['check_in']?.toString(),
+      checkOut: json['check_out']?.toString(),
+      workHours: json['work_hours']?.toString() ?? '00:00:00',
+      status: json['status']?.toString() ?? '',
+      isLate: parseBool(json['is_late'], false),
+      isEarlyDeparture: parseBool(json['is_early_departure'], false),
+      overtime: json['overtime']?.toString() ?? '00:00:00',
     );
   }
 }
@@ -73,13 +120,20 @@ class AttendanceSummaryModel {
   });
   
   factory AttendanceSummaryModel.fromJson(Map<String, dynamic> json) {
+    // Handle int values that may come as String
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+    
     return AttendanceSummaryModel(
-      totalDays: json['total_days'] as int? ?? 0,
-      presentDays: json['present_days'] as int? ?? 0,
-      absentDays: json['absent_days'] as int? ?? 0,
-      lateDays: json['late_days'] as int? ?? 0,
-      totalWorkHours: json['total_work_hours'] as String? ?? '00:00:00',
-      averageWorkHours: json['average_work_hours'] as String? ?? '00:00:00',
+      totalDays: parseInt(json['total_days']),
+      presentDays: parseInt(json['present_days']),
+      absentDays: parseInt(json['absent_days']),
+      lateDays: parseInt(json['late_days']),
+      totalWorkHours: json['total_work_hours']?.toString() ?? '00:00:00',
+      averageWorkHours: json['average_work_hours']?.toString() ?? '00:00:00',
     );
   }
 }
@@ -96,10 +150,17 @@ class PaginationModel {
   });
   
   factory PaginationModel.fromJson(Map<String, dynamic> json) {
+    // Handle int values that may come as String
+    int parseInt(dynamic value, int defaultValue) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+    
     return PaginationModel(
-      currentPage: json['current_page'] as int? ?? 1,
-      totalPages: json['total_pages'] as int? ?? 1,
-      totalRecords: json['total_records'] as int? ?? 0,
+      currentPage: parseInt(json['current_page'], 1),
+      totalPages: parseInt(json['total_pages'], 1),
+      totalRecords: parseInt(json['total_records'], 0),
     );
   }
 }

@@ -244,14 +244,15 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: IntraZeroColors.background,
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     return Scaffold(
       backgroundColor: IntraZeroColors.background,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -260,27 +261,34 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          GradientHeader(
-            title: _isEditMode ? 'Edit Morning Plan' : 'Start Your Day',
-            subtitle: DateFormat('EEEE, MMMM d, y').format(DateTime.now()),
-            icon: _isEditMode ? Icons.edit : Icons.wb_sunny,
-            gradient: IntraZeroColors.morningGradient,
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _workType == 'WFH' ? 'Working from Home' : 
-                _workType == 'LEAVE' ? 'On Leave' : 'At Office',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: GradientHeader(
+              title: _isEditMode ? 'Edit Morning Plan' : 'Start Your Day',
+              subtitle: DateFormat('EEEE, MMMM d, y').format(DateTime.now()),
+              icon: _isEditMode ? Icons.edit : Icons.wb_sunny,
+              gradient: IntraZeroColors.morningGradient,
+              trailing: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _workType == 'WFH'
+                      ? 'Working from Home'
+                      : _workType == 'LEAVE'
+                          ? 'On Leave'
+                          : 'At Office',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
               ),
             ),
           ),
-          Expanded(
+          SliverFillRemaining(
+            hasScrollBody: true,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(30),
               child: GlassmorphismCard(
@@ -291,11 +299,14 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.track_changes, color: IntraZeroColors.primaryGradient.colors.first),
+                          Icon(Icons.track_changes,
+                              color: IntraZeroColors.primaryGradient.colors.first),
                           const SizedBox(width: 10),
-                          Text(
-                            "What's your main goal for today?",
-                            style: IntraZeroTypography.label,
+                          Expanded(
+                            child: Text(
+                              "What's your main goal for today?",
+                              style: IntraZeroTypography.label,
+                            ),
                           ),
                         ],
                       ),
@@ -303,7 +314,8 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
                       TextFormField(
                         controller: _goalsController,
                         decoration: const InputDecoration(
-                          hintText: 'e.g., Complete the payment integration module',
+                          hintText:
+                              'e.g., Complete the payment integration module',
                         ),
                         maxLines: 3,
                         validator: (value) {
@@ -316,11 +328,14 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
                       const SizedBox(height: 30),
                       Row(
                         children: [
-                          Icon(Icons.list, color: IntraZeroColors.primaryGradient.colors.first),
+                          Icon(Icons.list,
+                              color: IntraZeroColors.primaryGradient.colors.first),
                           const SizedBox(width: 10),
-                          Text(
-                            'What tasks will you work on today?',
-                            style: IntraZeroTypography.label,
+                          Expanded(
+                            child: Text(
+                              'What tasks will you work on today?',
+                              style: IntraZeroTypography.label,
+                            ),
                           ),
                         ],
                       ),
@@ -345,11 +360,13 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add_circle, color: IntraZeroColors.textSecondary),
+                              Icon(Icons.add_circle,
+                                  color: IntraZeroColors.textSecondary),
                               const SizedBox(width: 8),
                               Text(
                                 'Add Task',
-                                style: TextStyle(color: IntraZeroColors.textSecondary),
+                                style: TextStyle(
+                                    color: IntraZeroColors.textSecondary),
                               ),
                             ],
                           ),

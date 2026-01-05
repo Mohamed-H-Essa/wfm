@@ -413,8 +413,9 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
   Future<Position?> _determinePosition() async {
     // Check app-specific location setting
     final prefs = await SharedPreferences.getInstance();
-    final isLocationEnabled = prefs.getBool('location_services_enabled') ?? true;
-    
+    final isLocationEnabled =
+        prefs.getBool('location_services_enabled') ?? true;
+
     if (!isLocationEnabled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

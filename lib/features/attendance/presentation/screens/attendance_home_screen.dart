@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../app/themes/colors.dart';
 import '../../../../shared/widgets/gradient_button.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
@@ -136,16 +137,12 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
 
   Future<void> _handleCheckIn(AttendanceStatusNotifier notifier) async {
     try {
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition();
-      } catch (e) {
-        // Location not available, continue without it
-      }
+      final position = await _determinePosition();
+      if (position == null) return;
 
       final responseData = await notifier.checkIn(
-        latitude: position?.latitude,
-        longitude: position?.longitude,
+        latitude: position.latitude,
+        longitude: position.longitude,
       );
 
       if (mounted) {
@@ -258,16 +255,12 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       }
 
       // Checkout is allowed, proceed
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition();
-      } catch (e) {
-        // Location not available, continue without it
-      }
+      final position = await _determinePosition();
+      if (position == null) return;
 
       await notifier.checkOut(
-        latitude: position?.latitude,
-        longitude: position?.longitude,
+        latitude: position.latitude,
+        longitude: position.longitude,
       );
 
       if (mounted) {
@@ -415,5 +408,72 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<Position?> _determinePosition() async {
+    // Check app-specific location setting
+    final prefs = await SharedPreferences.getInstance();
+    final isLocationEnabled = prefs.getBool('location_services_enabled') ?? true;
+    
+    if (!isLocationEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location services are disabled in App Settings.'),
+            backgroundColor: IntraZeroColors.warning,
+          ),
+        );
+      }
+      return null;
+    }
+
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Test if location services are enabled.
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Location services are disabled. Please enable them.'),
+            backgroundColor: IntraZeroColors.warning,
+          ),
+        );
+      }
+      return null;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permissions are denied'),
+              backgroundColor: IntraZeroColors.warning,
+            ),
+          );
+        }
+        return null;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Location permissions are permanently denied, we cannot request permissions.'),
+            backgroundColor: IntraZeroColors.danger,
+          ),
+        );
+      }
+      return null;
+    }
+
+    return await Geolocator.getCurrentPosition();
   }
 }

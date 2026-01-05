@@ -1,7 +1,7 @@
 name: intrazero_employee
 description: IntraZero Employee Mobile App - Flutter application for attendance, timesheet, and daily work tracking
 publish_to: "none"
-version: 1.0.2+2
+version: 1.0.4+4
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -28,7 +28,7 @@ dependencies:
   geocoding: ^2.1.1
 
   # Notifications
-  flutter_local_notifications: ^16.3.0
+  flutter_local_notifications: ^17.2.3
   firebase_messaging: ^14.7.0
   firebase_core: ^2.24.2
 
@@ -43,7 +43,7 @@ dependencies:
 
   # Security
   flutter_jailbreak_detection: ^1.10.0
-  root_checker_plus: ^1.0.0
+  # root_checker_plus: ^1.0.0  # Removed due to conflict with flutter_jailbreak_detection
 
   # Date/Time
   intl: ^0.18.1

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import '../../../../app/themes/colors.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/attendance_repository.dart';
@@ -96,7 +97,59 @@ final attendanceHistoryProvider =
       if (response.success && response.data != null) {
         try {
           print('📥 [ATTENDANCE_HISTORY] Parsing data...');
-          final model = AttendanceHistoryModel.fromJson(response.data!);
+          var model = AttendanceHistoryModel.fromJson(response.data!);
+
+          // CM-7 Fix: Filter future dates and adjust absent count for current month
+          final now = DateTime.now();
+          if (params.month == now.month && params.year == now.year) {
+            // 1. Filter records to exclude future dates
+            final filteredRecords = model.records.where((record) {
+              try {
+                final recordDate = DateTime.parse(record.date);
+                return recordDate.isBefore(now) ||
+                    DateUtils.isSameDay(recordDate, now);
+              } catch (e) {
+                return true; // Keep if parse fails
+              }
+            }).toList();
+
+            // 2. Adjust absent days in summary
+            // Calculate working days elapsed (excluding Fridays and Saturdays)
+            int workingDaysElapsed = 0;
+            for (int i = 1; i <= now.day; i++) {
+              final date = DateTime(params.year, params.month, i);
+              // Exclude Friday (5) and Saturday (6)
+              if (date.weekday != DateTime.friday &&
+                  date.weekday != DateTime.saturday) {
+                workingDaysElapsed++;
+              }
+            }
+
+            // Calculate max possible absent days based on working days elapsed
+            final maxAbsent = math.max(
+                0,
+                workingDaysElapsed -
+                    model.summary.presentDays -
+                    model.summary.lateDays);
+            final adjustedAbsent =
+                math.min(model.summary.absentDays, maxAbsent);
+
+            final adjustedSummary = AttendanceSummaryModel(
+              totalDays: model.summary.totalDays,
+              presentDays: model.summary.presentDays,
+              absentDays: adjustedAbsent,
+              lateDays: model.summary.lateDays,
+              totalWorkHours: model.summary.totalWorkHours,
+              averageWorkHours: model.summary.averageWorkHours,
+            );
+
+            model = AttendanceHistoryModel(
+              records: filteredRecords,
+              summary: adjustedSummary,
+              pagination: model.pagination,
+            );
+          }
+
           print(
               '✅ [ATTENDANCE_HISTORY] Parsed successfully - records: ${model.records.length}');
           // Cache the result

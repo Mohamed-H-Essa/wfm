@@ -5,8 +5,6 @@ import '../../../../app/themes/colors.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/attendance_repository.dart';
 import '../../data/models/attendance_history_model.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../shared/models/api_response.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 // Typed params class for proper equality
@@ -19,7 +17,7 @@ class AttendanceHistoryParams {
   const AttendanceHistoryParams({
     required this.month,
     required this.year,
-    this.page = 1,
+    required this.page,
   });
 
   @override
@@ -36,19 +34,24 @@ class AttendanceHistoryParams {
 
 // Cache to prevent repeated API calls
 final _attendanceHistoryCache = <String, _AttendanceCache>{};
+
 class _AttendanceCache {
   final AttendanceHistoryModel data;
   final DateTime timestamp;
   _AttendanceCache(this.data, this.timestamp);
 }
+
 const _attendanceCacheDuration = Duration(minutes: 5);
 
-final attendanceHistoryProvider = FutureProvider.family<AttendanceHistoryModel, AttendanceHistoryParams>((ref, params) async {
+final attendanceHistoryProvider =
+    FutureProvider.family<AttendanceHistoryModel, AttendanceHistoryParams>(
+        (ref, params) async {
   final cacheKey = '${params.month}_${params.year}_${params.page}';
   final cached = _attendanceHistoryCache[cacheKey];
-  
+
   // Return cached data if still valid
-  if (cached != null && DateTime.now().difference(cached.timestamp) < _attendanceCacheDuration) {
+  if (cached != null &&
+      DateTime.now().difference(cached.timestamp) < _attendanceCacheDuration) {
     return cached.data;
   }
   final emptyModel = AttendanceHistoryModel(
@@ -67,49 +70,56 @@ final attendanceHistoryProvider = FutureProvider.family<AttendanceHistoryModel, 
       totalRecords: 0,
     ),
   );
-  
+
   return (() async {
-      try {
-        final apiClient = ref.read(apiClientProvider); // Use read instead of watch
-        final token = await apiClient.getAccessToken();
-        if (token == null) {
-          return emptyModel;
-        }
-        
-        final repository = AttendanceRepository(apiClient);
-        
-        final response = await repository.getHistory(
-          month: params.month,
-          year: params.year,
-          page: params.page,
-        );
-        
-        print('📥 [ATTENDANCE_HISTORY] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
-        print('📥 [ATTENDANCE_HISTORY] Response data is null: ${response.data == null}');
-        
-        if (response.success && response.data != null) {
-          try {
-            print('📥 [ATTENDANCE_HISTORY] Parsing data...');
-            final model = AttendanceHistoryModel.fromJson(response.data!);
-            print('✅ [ATTENDANCE_HISTORY] Parsed successfully - records: ${model.records.length}');
-            // Cache the result
-            _attendanceHistoryCache[cacheKey] = _AttendanceCache(model, DateTime.now());
-            return model;
-          } catch (e, stack) {
-            print('❌ [ATTENDANCE_HISTORY] Parse error: $e');
-            print('❌ [ATTENDANCE_HISTORY] Stack: $stack');
-            print('❌ [ATTENDANCE_HISTORY] Response data: ${response.data}');
-            return emptyModel;
-          }
-        } else {
-          print('⚠️ [ATTENDANCE_HISTORY] Response not successful or data is null');
-          print('⚠️ [ATTENDANCE_HISTORY] Message: ${response.message}');
-        }
-        return emptyModel;
-      } catch (e) {
+    try {
+      final apiClient =
+          ref.read(apiClientProvider); // Use read instead of watch
+      final token = await apiClient.getAccessToken();
+      if (token == null) {
         return emptyModel;
       }
-    })().timeout(
+
+      final repository = AttendanceRepository(apiClient);
+
+      final response = await repository.getHistory(
+        month: params.month,
+        year: params.year,
+        page: params.page,
+      );
+
+      print(
+          '📥 [ATTENDANCE_HISTORY] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+      print(
+          '📥 [ATTENDANCE_HISTORY] Response data is null: ${response.data == null}');
+
+      if (response.success && response.data != null) {
+        try {
+          print('📥 [ATTENDANCE_HISTORY] Parsing data...');
+          final model = AttendanceHistoryModel.fromJson(response.data!);
+          print(
+              '✅ [ATTENDANCE_HISTORY] Parsed successfully - records: ${model.records.length}');
+          // Cache the result
+          _attendanceHistoryCache[cacheKey] =
+              _AttendanceCache(model, DateTime.now());
+          return model;
+        } catch (e, stack) {
+          print('❌ [ATTENDANCE_HISTORY] Parse error: $e');
+          print('❌ [ATTENDANCE_HISTORY] Stack: $stack');
+          print('❌ [ATTENDANCE_HISTORY] Response data: ${response.data}');
+          return emptyModel;
+        }
+      } else {
+        print(
+            '⚠️ [ATTENDANCE_HISTORY] Response not successful or data is null');
+        print('⚠️ [ATTENDANCE_HISTORY] Message: ${response.message}');
+      }
+      return emptyModel;
+    } catch (e) {
+      return emptyModel;
+    }
+  })()
+      .timeout(
     const Duration(seconds: 12),
     onTimeout: () => emptyModel,
   );
@@ -119,10 +129,12 @@ class AttendanceHistoryScreen extends ConsumerStatefulWidget {
   const AttendanceHistoryScreen({super.key});
 
   @override
-  ConsumerState<AttendanceHistoryScreen> createState() => _AttendanceHistoryScreenState();
+  ConsumerState<AttendanceHistoryScreen> createState() =>
+      _AttendanceHistoryScreenState();
 }
 
-class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScreen> {
+class _AttendanceHistoryScreenState
+    extends ConsumerState<AttendanceHistoryScreen> {
   int _selectedMonth = DateTime.now().month;
   int _selectedYear = DateTime.now().year;
 
@@ -150,7 +162,8 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
       ),
       body: historyAsync.when(
         data: (history) {
-          print('🎨 [ATTENDANCE_HISTORY] UI rendering with data - records: ${history.records.length}');
+          print(
+              '🎨 [ATTENDANCE_HISTORY] UI rendering with data - records: ${history.records.length}');
           if (history.records.isEmpty) {
             return const Center(child: Text('No attendance records found'));
           }
@@ -195,13 +208,16 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
           Row(
             children: [
               Expanded(
-                child: _buildStatItem('Present', summary.presentDays.toString(), IntraZeroColors.success),
+                child: _buildStatItem('Present', summary.presentDays.toString(),
+                    IntraZeroColors.success),
               ),
               Expanded(
-                child: _buildStatItem('Absent', summary.absentDays.toString(), IntraZeroColors.danger),
+                child: _buildStatItem('Absent', summary.absentDays.toString(),
+                    IntraZeroColors.danger),
               ),
               Expanded(
-                child: _buildStatItem('Late', summary.lateDays.toString(), IntraZeroColors.warning),
+                child: _buildStatItem('Late', summary.lateDays.toString(),
+                    IntraZeroColors.warning),
               ),
             ],
           ),
@@ -277,7 +293,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
   Widget _buildRecordCard(AttendanceRecordModel record) {
     Color statusColor;
     IconData statusIcon;
-    
+
     switch (record.status) {
       case 'PRESENT':
         statusColor = IntraZeroColors.success;
@@ -381,7 +397,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
       lastDate: now,
       initialDatePickerMode: DatePickerMode.year,
     );
-    
+
     if (picked != null) {
       setState(() {
         _selectedMonth = picked.month;

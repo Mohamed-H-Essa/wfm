@@ -327,6 +327,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
               GradientButton(
                 text: 'Complete Evening Summary',
                 gradient: IntraZeroColors.eveningGradient,
@@ -345,6 +346,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                 },
               ),
             ],
+            const SizedBox(height: 12),
             GradientButton(
               text: 'Check Out',
               gradient: IntraZeroColors.eveningGradient,

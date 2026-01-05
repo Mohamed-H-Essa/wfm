@@ -17,7 +17,8 @@ class AttendanceHomeScreen extends ConsumerStatefulWidget {
   const AttendanceHomeScreen({super.key});
 
   @override
-  ConsumerState<AttendanceHomeScreen> createState() => _AttendanceHomeScreenState();
+  ConsumerState<AttendanceHomeScreen> createState() =>
+      _AttendanceHomeScreenState();
 }
 
 class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
@@ -33,7 +34,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
   Widget build(BuildContext context) {
     final attendanceStatus = ref.watch(attendanceStatusProvider);
     final attendanceNotifier = ref.read(attendanceStatusProvider.notifier);
-    
+
     return Scaffold(
       backgroundColor: IntraZeroColors.background,
       appBar: AppBar(
@@ -44,7 +45,8 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AttendanceHistoryScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const AttendanceHistoryScreen()),
               );
             },
           ),
@@ -74,14 +76,17 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                     ),
                     const SizedBox(height: 30),
                     if (status.checkIn != null) ...[
-                      _buildTimeCard('Check In', status.checkIn!.time, Icons.login, IntraZeroColors.success),
+                      _buildTimeCard('Check In', status.checkIn!.time,
+                          Icons.login, IntraZeroColors.success),
                       const SizedBox(height: 20),
                     ],
                     if (status.checkOut != null) ...[
-                      _buildTimeCard('Check Out', status.checkOut!.time, Icons.logout, IntraZeroColors.danger),
+                      _buildTimeCard('Check Out', status.checkOut!.time,
+                          Icons.logout, IntraZeroColors.danger),
                       const SizedBox(height: 20),
                     ],
-                    _buildTimeCard('Work Hours', status.workHours, Icons.access_time, IntraZeroColors.info),
+                    _buildTimeCard('Work Hours', status.workHours,
+                        Icons.access_time, IntraZeroColors.info),
                     const SizedBox(height: 30),
                     if (status.status == 'NOT_CHECKED_IN')
                       GradientButton(
@@ -101,7 +106,8 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ForgotCheckinScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const ForgotCheckinScreen()),
                   );
                 },
                 icon: const Icon(Icons.help_outline),
@@ -127,7 +133,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       ),
     );
   }
-  
+
   Future<void> _handleCheckIn(AttendanceStatusNotifier notifier) async {
     try {
       Position? position;
@@ -136,18 +142,20 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       } catch (e) {
         // Location not available, continue without it
       }
-      
+
       final responseData = await notifier.checkIn(
         latitude: position?.latitude,
         longitude: position?.longitude,
       );
-      
+
       if (mounted) {
         // Check morning plan status from response
         if (responseData != null) {
-          final morningPlanRequired = responseData['morning_plan_required'] as bool? ?? false;
-          final morningPlanSubmitted = responseData['morning_plan_submitted'] as bool? ?? false;
-          
+          final morningPlanRequired =
+              responseData['morning_plan_required'] as bool? ?? false;
+          final morningPlanSubmitted =
+              responseData['morning_plan_submitted'] as bool? ?? false;
+
           if (morningPlanRequired && !morningPlanSubmitted) {
             // Auto-redirect to morning plan screen
             Navigator.push(
@@ -159,7 +167,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
               // Refresh status after returning from morning plan
               notifier.loadStatus();
             });
-            
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Please submit your morning plan'),
@@ -171,7 +179,8 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
             // Morning plan already submitted - show success message
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Checked in successfully! Morning plan already submitted.'),
+                content: Text(
+                    'Checked in successfully! Morning plan already submitted.'),
                 backgroundColor: IntraZeroColors.success,
               ),
             );
@@ -203,13 +212,13 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       }
     }
   }
-  
+
   Future<void> _handleCheckOut(AttendanceStatusNotifier notifier) async {
     try {
       // First check if checkout is allowed
       final checkoutStatusAsync = ref.read(checkoutStatusProvider.future);
       final checkoutStatus = await checkoutStatusAsync;
-      
+
       if (!checkoutStatus.canCheckout) {
         // Show blocking dialog and navigate to evening summary
         if (mounted) {
@@ -218,7 +227,8 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
             barrierDismissible: false,
             builder: (context) => AlertDialog(
               title: const Text('Check-out Blocked'),
-              content: Text(checkoutStatus.blockingReason ?? 'Please complete your evening summary before checking out'),
+              content: Text(checkoutStatus.blockingReason ??
+                  'Please complete your evening summary before checking out'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -246,7 +256,7 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
         }
         return;
       }
-      
+
       // Checkout is allowed, proceed
       Position? position;
       try {
@@ -254,12 +264,12 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       } catch (e) {
         // Location not available, continue without it
       }
-      
+
       await notifier.checkOut(
         latitude: position?.latitude,
         longitude: position?.longitude,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -279,14 +289,14 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
       }
     }
   }
-  
+
   Widget _buildCheckOutButton(AttendanceStatusNotifier notifier) {
     final checkoutStatusAsync = ref.watch(checkoutStatusProvider);
-    
+
     return checkoutStatusAsync.when(
       data: (checkoutStatus) {
         final isBlocked = !checkoutStatus.canCheckout;
-        
+
         return Column(
           children: [
             if (isBlocked) ...[
@@ -300,11 +310,13 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning, color: IntraZeroColors.warning, size: 20),
+                    Icon(Icons.warning,
+                        color: IntraZeroColors.warning, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        checkoutStatus.blockingReason ?? 'Please complete your evening summary before checking out',
+                        checkoutStatus.blockingReason ??
+                            'Please complete your evening summary before checking out',
                         style: TextStyle(
                           fontSize: 12,
                           color: IntraZeroColors.warning,
@@ -405,4 +417,3 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
     );
   }
 }
-

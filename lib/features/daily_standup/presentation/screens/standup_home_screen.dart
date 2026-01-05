@@ -21,13 +21,28 @@ class StandupHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<StandupHomeScreen> createState() => _StandupHomeScreenState();
 }
 
-class _StandupHomeScreenState extends ConsumerState<StandupHomeScreen> {
+class _StandupHomeScreenState extends ConsumerState<StandupHomeScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(standupStatusProvider.notifier).loadStatus();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh status when app comes to foreground
+      ref.read(standupStatusProvider.notifier).loadStatus();
+    }
   }
 
   @override
@@ -90,15 +105,20 @@ class _StandupHomeScreenState extends ConsumerState<StandupHomeScreen> {
             );
           }
           
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _buildReminderIndicators(),
-                const SizedBox(height: 20),
-                _buildProgressIndicator(status),
-                const SizedBox(height: 20),
-                GlassmorphismCard(
+          return RefreshIndicator(
+            onRefresh: () async {
+              await standupNotifier.loadStatus();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildReminderIndicators(),
+                  const SizedBox(height: 20),
+                  _buildProgressIndicator(status),
+                  const SizedBox(height: 20),
+                  GlassmorphismCard(
                   child: Column(
                     children: [
                       if (!status.morningSubmitted)

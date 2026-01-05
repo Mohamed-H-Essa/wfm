@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:math' as math;
 import '../../../../app/themes/colors.dart';
 import '../../../../shared/widgets/glassmorphism_card.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -42,15 +43,18 @@ class _NotificationCache {
 final _notificationsCache = <String, _NotificationCache>{};
 const Duration _cacheDuration = Duration(hours: 1);
 
-final notificationsProvider = FutureProvider.family<NotificationListModel, NotificationsParams>((ref, params) async {
+final notificationsProvider =
+    FutureProvider.family<NotificationListModel, NotificationsParams>(
+        (ref, params) async {
   final cacheKey = '${params.unreadOnly}_${params.page}';
   final cached = _notificationsCache[cacheKey];
-  
+
   // Return cached data if still valid (less than 1 hour old)
-  if (cached != null && DateTime.now().difference(cached.timestamp) < _cacheDuration) {
+  if (cached != null &&
+      DateTime.now().difference(cached.timestamp) < _cacheDuration) {
     return cached.data;
   }
-  
+
   // Return empty model instead of throwing
   final emptyData = NotificationListModel(
     notifications: [],
@@ -61,35 +65,42 @@ final notificationsProvider = FutureProvider.family<NotificationListModel, Notif
       totalRecords: 0,
     ),
   );
-  
+
   return (() async {
     try {
       final repository = NotificationRepository(ref.read(apiClientProvider));
-      final response = await repository.getNotifications(
-        unreadOnly: params.unreadOnly,
-        page: params.page,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () => ApiResponse<Map<String, dynamic>>(
-          success: false,
-          message: 'Request timeout',
-          statusCode: null,
-        ),
-      );
-      
-      print('📥 [NOTIFICATIONS] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
-      print('📥 [NOTIFICATIONS] Response data is null: ${response.data == null}');
+      final response = await repository
+          .getNotifications(
+            unreadOnly: params.unreadOnly,
+            page: params.page,
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => ApiResponse<Map<String, dynamic>>(
+              success: false,
+              message: 'Request timeout',
+              statusCode: null,
+            ),
+          );
+
+      print(
+          '📥 [NOTIFICATIONS] Response received - success: ${response.success}, statusCode: ${response.statusCode}');
+      print(
+          '📥 [NOTIFICATIONS] Response data is null: ${response.data == null}');
       if (response.data != null) {
-        print('📥 [NOTIFICATIONS] Response data keys: ${(response.data as Map).keys.toList()}');
+        print(
+            '📥 [NOTIFICATIONS] Response data keys: ${(response.data as Map).keys.toList()}');
       }
-      
+
       if (response.success && response.data != null) {
         try {
           print('📥 [NOTIFICATIONS] Parsing data...');
           final data = NotificationListModel.fromJson(response.data!);
-          print('✅ [NOTIFICATIONS] Parsed successfully - notifications: ${data.notifications.length}');
+          print(
+              '✅ [NOTIFICATIONS] Parsed successfully - notifications: ${data.notifications.length}');
           // Cache the result
-          _notificationsCache[cacheKey] = _NotificationCache(data, DateTime.now());
+          _notificationsCache[cacheKey] =
+              _NotificationCache(data, DateTime.now());
           return data;
         } catch (e, stack) {
           print('❌ [NOTIFICATIONS] Parse error: $e');
@@ -106,13 +117,16 @@ final notificationsProvider = FutureProvider.family<NotificationListModel, Notif
       print('❌ [NOTIFICATIONS] Stack: $stack');
       // Silently handle errors
     }
-    
-    _notificationsCache[cacheKey] = _NotificationCache(emptyData, DateTime.now());
+
+    _notificationsCache[cacheKey] =
+        _NotificationCache(emptyData, DateTime.now());
     return emptyData;
-  })().timeout(
+  })()
+      .timeout(
     const Duration(seconds: 12),
     onTimeout: () {
-      _notificationsCache[cacheKey] = _NotificationCache(emptyData, DateTime.now());
+      _notificationsCache[cacheKey] =
+          _NotificationCache(emptyData, DateTime.now());
       return emptyData;
     },
   );
@@ -122,7 +136,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
@@ -130,8 +145,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   int _page = 1;
   DateTime? _lastRefreshTime;
   DateTime? _lastMarkAsReadTime;
-  static const Duration _minRefreshInterval = Duration(minutes: 1); // Minimum 1 minute between refreshes
-  static const Duration _minMarkAsReadInterval = Duration(seconds: 2); // Minimum 2 seconds between mark as read calls
+  static const Duration _minRefreshInterval =
+      Duration(minutes: 1); // Minimum 1 minute between refreshes
+  static const Duration _minMarkAsReadInterval =
+      Duration(seconds: 2); // Minimum 2 seconds between mark as read calls
 
   @override
   Widget build(BuildContext context) {
@@ -161,7 +178,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             .where((n) => !n.isRead)
                             .map((n) => n.id)
                             .toList();
-                        
+
                         if (unreadIds.isNotEmpty) {
                           // Show loading
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +188,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                   SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   ),
                                   SizedBox(width: 12),
                                   Text('Marking all as read...'),
@@ -180,15 +198,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                               duration: Duration(seconds: 2),
                             ),
                           );
-                          
+
                           // Mark all as read
-                          final repository = NotificationRepository(ref.read(apiClientProvider));
-                          final response = await repository.markAsReadMultiple(unreadIds);
-                          
+                          final repository = NotificationRepository(
+                              ref.read(apiClientProvider));
+                          final response =
+                              await repository.markAsReadMultiple(unreadIds);
+
                           if (response.success) {
                             // Clear cache to force fresh fetch
                             _notificationsCache.clear();
-                            
+
                             // Invalidate all notification providers (for both list and counter)
                             ref.invalidate(notificationsProvider(
                               NotificationsParams(
@@ -203,12 +223,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                 page: 1,
                               ),
                             ));
-                            
+
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context)
+                                  .hideCurrentSnackBar();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('${unreadIds.length} notification(s) marked as read'),
+                                  content: Text(
+                                      '${unreadIds.length} notification(s) marked as read'),
                                   backgroundColor: IntraZeroColors.success,
                                   duration: const Duration(seconds: 2),
                                 ),
@@ -216,10 +238,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                             }
                           } else {
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context)
+                                  .hideCurrentSnackBar();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(response.message ?? 'Failed to mark all as read'),
+                                  content: Text(response.message ??
+                                      'Failed to mark all as read'),
                                   backgroundColor: IntraZeroColors.danger,
                                 ),
                               );
@@ -256,9 +280,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               );
               final cacheKey = '${_unreadOnly}_$_page';
               final cached = _notificationsCache[cacheKey];
-              
+
               // Clear cache if it's been more than 1 hour, or force refresh
-              if (cached == null || now.difference(cached.timestamp) >= _cacheDuration) {
+              if (cached == null ||
+                  now.difference(cached.timestamp) >= _cacheDuration) {
                 _lastRefreshTime = now;
                 // Clear cache to force fresh fetch
                 _notificationsCache.remove(cacheKey);
@@ -270,39 +295,41 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ),
       body: notificationsAsync.when(
         data: (notificationList) {
-          print('🎨 [NOTIFICATIONS] UI rendering with data - notifications: ${notificationList.notifications.length}');
+          print(
+              '🎨 [NOTIFICATIONS] UI rendering with data - notifications: ${notificationList.notifications.length}');
           return notificationList.notifications.isEmpty
               ? const Center(
                   child: Text('No notifications'),
                 )
               : Column(
-                children: [
-                  if (notificationList.unreadCount > 0)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      color: IntraZeroColors.info.withOpacity(0.1),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info, color: IntraZeroColors.info),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${notificationList.unreadCount} unread notification${notificationList.unreadCount > 1 ? 's' : ''}',
-                            style: TextStyle(color: IntraZeroColors.info),
-                          ),
-                        ],
+                  children: [
+                    if (notificationList.unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        color: IntraZeroColors.info.withOpacity(0.1),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info, color: IntraZeroColors.info),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${notificationList.unreadCount} unread notification${notificationList.unreadCount > 1 ? 's' : ''}',
+                              style: TextStyle(color: IntraZeroColors.info),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: notificationList.notifications.length,
+                        itemBuilder: (context, index) {
+                          final notification =
+                              notificationList.notifications[index];
+                          return _buildNotificationCard(notification);
+                        },
                       ),
                     ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: notificationList.notifications.length,
-                      itemBuilder: (context, index) {
-                        final notification = notificationList.notifications[index];
-                        return _buildNotificationCard(notification);
-                      },
-                    ),
-                  ),
-                ],
-              );
+                  ],
+                );
         },
         loading: () {
           print('⏳ [NOTIFICATIONS] UI showing loading state');
@@ -320,7 +347,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Widget _buildNotificationCard(NotificationModel notification) {
     IconData iconData;
     Color iconColor;
-    
+
     switch (notification.type) {
       case 'LEAVE_APPROVED':
       case 'LEAVE_REJECTED':
@@ -344,35 +371,70 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return Dismissible(
       key: Key(notification.id.toString()),
       direction: DismissDirection.endToStart,
-      onDismissed: (direction) async {
+      onDismissed: (direction) {
+        // 1. Optimistically remove from UI/Cache immediately to prevent Dismissible error
+        final params = NotificationsParams(
+          unreadOnly: _unreadOnly,
+          page: _page,
+        );
+        final cacheKey = '${_unreadOnly}_$_page';
+        final cached = _notificationsCache[cacheKey];
+
+        if (cached != null) {
+          final updatedList =
+              List<NotificationModel>.from(cached.data.notifications);
+          updatedList.removeWhere((n) => n.id == notification.id);
+
+          final updatedData = NotificationListModel(
+            notifications: updatedList,
+            unreadCount: notification.isRead
+                ? cached.data.unreadCount
+                : math.max(0, cached.data.unreadCount - 1),
+            pagination: cached.data.pagination,
+          );
+
+          _notificationsCache[cacheKey] =
+              _NotificationCache(updatedData, DateTime.now());
+
+          // Force UI update immediately
+          ref.invalidate(notificationsProvider(params));
+
+          // Also update the global unread counter if needed (params: unreadOnly=false, page=1)
+          if (!notification.isRead) {
+            const counterParams =
+                NotificationsParams(unreadOnly: false, page: 1);
+            final counterCacheKey = '${false}_1';
+            final counterCached = _notificationsCache[counterCacheKey];
+
+            if (counterCached != null && counterCacheKey != cacheKey) {
+              final counterData = NotificationListModel(
+                notifications: counterCached.data.notifications,
+                unreadCount: math.max(0, counterCached.data.unreadCount - 1),
+                pagination: counterCached.data.pagination,
+              );
+              _notificationsCache[counterCacheKey] =
+                  _NotificationCache(counterData, DateTime.now());
+              ref.invalidate(notificationsProvider(counterParams));
+            }
+          }
+        }
+
+        // 2. Perform API call in background
         if (!notification.isRead) {
-          // Throttle mark as read calls
           final now = DateTime.now();
-          if (_lastMarkAsReadTime == null || 
+          if (_lastMarkAsReadTime == null ||
               now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
             _lastMarkAsReadTime = now;
-            final repository = NotificationRepository(ref.read(apiClientProvider));
-            final response = await repository.markAsReadSingle(notification.id);
-            
-            if (response.success) {
-              // Clear cache to force fresh fetch
-              _notificationsCache.clear();
-              
-              // Refresh all notification providers (for both list and counter)
-              ref.refresh(notificationsProvider(
-                NotificationsParams(
-                  unreadOnly: _unreadOnly,
-                  page: _page,
-                ),
-              ));
-              // Also refresh the counter provider (unreadOnly: false, page: 1)
-              ref.refresh(notificationsProvider(
-                NotificationsParams(
-                  unreadOnly: false,
-                  page: 1,
-                ),
-              ));
-            }
+            final repository =
+                NotificationRepository(ref.read(apiClientProvider));
+
+            // Fire and forget - if it fails, next refresh will correct it
+            repository.markAsReadSingle(notification.id).then((response) {
+              if (!response.success) {
+                // Optional: Invalidate cache to force re-fetch on next interaction
+                _notificationsCache.remove(cacheKey);
+              }
+            });
           }
         }
       },
@@ -388,16 +450,19 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           if (!notification.isRead) {
             // Throttle mark as read calls
             final now = DateTime.now();
-            if (_lastMarkAsReadTime == null || 
-                now.difference(_lastMarkAsReadTime!) >= _minMarkAsReadInterval) {
+            if (_lastMarkAsReadTime == null ||
+                now.difference(_lastMarkAsReadTime!) >=
+                    _minMarkAsReadInterval) {
               _lastMarkAsReadTime = now;
-              final repository = NotificationRepository(ref.read(apiClientProvider));
-              final response = await repository.markAsReadSingle(notification.id);
-              
+              final repository =
+                  NotificationRepository(ref.read(apiClientProvider));
+              final response =
+                  await repository.markAsReadSingle(notification.id);
+
               if (response.success) {
                 // Clear cache to force fresh fetch
                 _notificationsCache.clear();
-                
+
                 // Invalidate all notification providers (for both list and counter)
                 ref.invalidate(notificationsProvider(
                   NotificationsParams(
@@ -415,7 +480,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               }
             }
           }
-          
+
           // Handle notification link if present
           if (notification.data != null && notification.data!['link'] != null) {
             final link = notification.data!['link']?.toString();

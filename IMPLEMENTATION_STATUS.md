@@ -27,7 +27,7 @@
 - ✅ Check-in/out functionality (location optional)
 - ✅ Status display with real-time updates
 - ✅ Forgot check-in screen (UI complete)
-- ✅ Attendance history screen (placeholder)
+- ✅ Attendance history screen (API integrated)
 
 ### Timesheet
 - ✅ Timesheet home screen with API integration
@@ -45,9 +45,9 @@
 ### Other Features
 - ✅ Leave management screen (placeholder)
 - ✅ Excuse requests screen (placeholder)
-- ✅ Notifications screen (placeholder)
+- ✅ Notifications screen (API integrated)
 - ✅ Profile screen with user display
-- ✅ Settings screen (placeholder)
+- ✅ Settings screen (Local prefs & Version info)
 - ✅ Main navigation with bottom nav
 
 ## 📊 Statistics

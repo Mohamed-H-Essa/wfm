@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -86,9 +87,12 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                           Icons.logout, IntraZeroColors.danger),
                       const SizedBox(height: 20),
                     ],
-                    _buildTimeCard('Work Hours', status.workHours,
-                        Icons.access_time, IntraZeroColors.info),
-                    const SizedBox(height: 30),
+                    // CM-1 Fix: Hide timer screen (Work Hours) when checked in
+                    if (status.status != 'CHECKED_IN') ...[
+                      _buildTimeCard('Work Hours', status.workHours,
+                          Icons.access_time, IntraZeroColors.info),
+                      const SizedBox(height: 30),
+                    ],
                     if (status.status == 'NOT_CHECKED_IN')
                       GradientButton(
                         text: 'Check In',
@@ -97,8 +101,12 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
                         isFullWidth: true,
                         onPressed: () => _handleCheckIn(attendanceNotifier),
                       )
-                    else if (status.status == 'CHECKED_IN')
+                    else if (status.status == 'CHECKED_IN') ...[
+                      // Show active timer when checked in
+                      _ActiveTimer(initialWorkHours: status.workHours),
+                      const SizedBox(height: 30),
                       _buildCheckOutButton(attendanceNotifier),
+                    ],
                   ],
                 ),
               ),
@@ -476,5 +484,134 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
     }
 
     return await Geolocator.getCurrentPosition();
+  }
+}
+
+class _ActiveTimer extends StatefulWidget {
+  final String initialWorkHours;
+  const _ActiveTimer({required this.initialWorkHours});
+
+  @override
+  State<_ActiveTimer> createState() => _ActiveTimerState();
+}
+
+class _ActiveTimerState extends State<_ActiveTimer> {
+  late Duration _duration;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _parseDuration();
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(_ActiveTimer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialWorkHours != widget.initialWorkHours) {
+      _parseDuration();
+    }
+  }
+
+  void _parseDuration() {
+    try {
+      final parts = widget.initialWorkHours.split(':');
+      _duration = Duration(
+        hours: int.parse(parts[0]),
+        minutes: int.parse(parts[1]),
+        seconds: int.parse(parts[2]),
+      );
+    } catch (e) {
+      _duration = Duration.zero;
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _duration += const Duration(seconds: 1);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration() {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String twoDigitMinutes = twoDigits(_duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(_duration.inSeconds.remainder(60));
+    return "${twoDigits(_duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: IntraZeroColors.primaryGradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color:
+                IntraZeroColors.primaryGradient.colors.first.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Currently Working',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _formatDuration(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.circle, size: 8, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Tracking time',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

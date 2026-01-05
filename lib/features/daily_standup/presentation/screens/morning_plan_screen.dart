@@ -272,138 +272,141 @@ class _MorningPlanScreenState extends ConsumerState<MorningPlanScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: GradientHeader(
-              title: _isEditMode ? 'Edit Morning Plan' : 'Start Your Day',
-              subtitle: DateFormat('EEEE, MMMM d, y').format(DateTime.now()),
-              icon: _isEditMode ? Icons.edit : Icons.wb_sunny,
-              gradient: IntraZeroColors.morningGradient,
-              trailing: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  _workType == 'WFH'
-                      ? 'Working from Home'
-                      : _workType == 'LEAVE'
-                          ? 'On Leave'
-                          : 'At Office',
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-              ),
-            ),
-          ),
-          SliverFillRemaining(
-            hasScrollBody: true,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(30),
-              child: GlassmorphismCard(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.track_changes,
-                              color:
-                                  IntraZeroColors.primaryGradient.colors.first),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              "What's your main goal for today?",
-                              style: IntraZeroTypography.label,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _goalsController,
-                        decoration: const InputDecoration(
-                          hintText:
-                              'e.g., Complete the payment integration module',
-                        ),
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your goal for today';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 30),
-                      Row(
-                        children: [
-                          Icon(Icons.list,
-                              color:
-                                  IntraZeroColors.primaryGradient.colors.first),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'What tasks will you work on today?',
-                              style: IntraZeroTypography.label,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...List.generate(_tasks.length, (index) {
-                        return _buildTaskItem(index);
-                      }),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: _addTask,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: IntraZeroColors.borderMedium,
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_circle,
-                                  color: IntraZeroColors.textSecondary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Add Task',
-                                style: TextStyle(
-                                    color: IntraZeroColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          GradientButton(
-                            text: _isEditMode ? 'Update' : 'Submit',
-                            gradient: IntraZeroColors.primaryGradient,
-                            icon: Icons.check,
-                            onPressed: _submit,
-                          ),
-                        ],
-                      ),
-                    ],
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: GradientHeader(
+                title: _isEditMode ? 'Edit Morning Plan' : 'Start Your Day',
+                subtitle: DateFormat('EEEE, MMMM d, y').format(DateTime.now()),
+                icon: _isEditMode ? Icons.edit : Icons.wb_sunny,
+                gradient: IntraZeroColors.morningGradient,
+                trailing: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _workType == 'WFH'
+                        ? 'Working from Home'
+                        : _workType == 'LEAVE'
+                            ? 'On Leave'
+                            : 'At Office',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(30),
+                child: GlassmorphismCard(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.track_changes,
+                                color: IntraZeroColors
+                                    .primaryGradient.colors.first),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "What's your main goal for today?",
+                                style: IntraZeroTypography.label,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _goalsController,
+                          decoration: const InputDecoration(
+                            hintText:
+                                'e.g., Complete the payment integration module',
+                          ),
+                          maxLines: 3,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your goal for today';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 30),
+                        Row(
+                          children: [
+                            Icon(Icons.list,
+                                color: IntraZeroColors
+                                    .primaryGradient.colors.first),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'What tasks will you work on today?',
+                                style: IntraZeroTypography.label,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ...List.generate(_tasks.length, (index) {
+                          return _buildTaskItem(index);
+                        }),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: _addTask,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: IntraZeroColors.borderMedium,
+                                width: 2,
+                                style: BorderStyle.solid,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_circle,
+                                    color: IntraZeroColors.textSecondary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Add Task',
+                                  style: TextStyle(
+                                      color: IntraZeroColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            GradientButton(
+                              text: _isEditMode ? 'Update' : 'Submit',
+                              gradient: IntraZeroColors.primaryGradient,
+                              icon: Icons.check,
+                              onPressed: _submit,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

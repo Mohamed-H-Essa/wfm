@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../app/themes/colors.dart';
 import '../../../../app/routes/app_routes.dart';
@@ -32,11 +33,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _locationServices = true;
   bool _biometricLogin = false;
   bool _isLoading = false;
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
     _loadLocalPreferences();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _version = '${packageInfo.version} (${packageInfo.buildNumber})';
+      });
+    }
   }
 
   Future<void> _loadLocalPreferences() async {
@@ -63,10 +75,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: settingsAsync.when(
         data: (settings) {
-          _pushNotifications = settings['push_notifications_enabled'] as bool? ?? _pushNotifications;
-          _locationServices = settings['location_services_enabled'] as bool? ?? _locationServices;
-          _biometricLogin = settings['biometric_login_enabled'] as bool? ?? _biometricLogin;
-          
+          _pushNotifications =
+              settings['push_notifications_enabled'] as bool? ??
+                  _pushNotifications;
+          _locationServices = settings['location_services_enabled'] as bool? ??
+              _locationServices;
+          _biometricLogin =
+              settings['biometric_login_enabled'] as bool? ?? _biometricLogin;
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -90,12 +106,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           setState(() {
                             _pushNotifications = value;
                           });
-                          await _saveLocalPreference('push_notifications_enabled', value);
+                          await _saveLocalPreference(
+                              'push_notifications_enabled', value);
                           // Note: This is a local preference. Server-side push notification settings
                           // are controlled by admin via the backend settings.
                         },
                         title: const Text('Push Notifications'),
-                        subtitle: const Text('Receive push notifications for important updates'),
+                        subtitle: const Text(
+                            'Receive push notifications for important updates'),
                         secondary: const Icon(Icons.notifications),
                       ),
                       const Divider(),
@@ -105,12 +123,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           setState(() {
                             _locationServices = value;
                           });
-                          await _saveLocalPreference('location_services_enabled', value);
+                          await _saveLocalPreference(
+                              'location_services_enabled', value);
                           // Note: This is a local preference for allowing location access.
                           // The actual location requirement is controlled by admin via backend settings.
                         },
                         title: const Text('Location Services'),
-                        subtitle: const Text('Allow location tracking for check-in/out'),
+                        subtitle: const Text(
+                            'Allow location tracking for check-in/out'),
                         secondary: const Icon(Icons.location_on),
                       ),
                       const Divider(),
@@ -118,37 +138,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         value: _biometricLogin,
                         onChanged: (value) async {
                           if (_isLoading) return;
-                          
+
                           setState(() {
                             _isLoading = true;
                             _biometricLogin = value;
                           });
-                          
+
                           try {
                             final deviceInfo = DeviceInfoPlugin();
                             String deviceId;
-                            if (Theme.of(context).platform == TargetPlatform.android) {
+                            if (Theme.of(context).platform ==
+                                TargetPlatform.android) {
                               final androidInfo = await deviceInfo.androidInfo;
                               deviceId = androidInfo.id;
                             } else {
                               final iosInfo = await deviceInfo.iosInfo;
-                              deviceId = iosInfo.identifierForVendor ?? 'unknown';
+                              deviceId =
+                                  iosInfo.identifierForVendor ?? 'unknown';
                             }
-                            
-                            final authRepository = AuthRepository(ref.read(apiClientProvider));
-                            final response = await authRepository.updateBiometricSettings(
+
+                            final authRepository =
+                                AuthRepository(ref.read(apiClientProvider));
+                            final response =
+                                await authRepository.updateBiometricSettings(
                               enabled: value,
                               deviceId: deviceId,
                               biometricToken: value ? 'enabled' : null,
                             );
-                            
+
                             if (response.success) {
-                              await _saveLocalPreference('biometric_login_enabled', value);
+                              await _saveLocalPreference(
+                                  'biometric_login_enabled', value);
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(value 
-                                        ? 'Biometric login enabled' 
+                                    content: Text(value
+                                        ? 'Biometric login enabled'
                                         : 'Biometric login disabled'),
                                     backgroundColor: IntraZeroColors.success,
                                   ),
@@ -158,7 +183,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(response.message ?? 'Failed to update biometric settings'),
+                                    content: Text(response.message ??
+                                        'Failed to update biometric settings'),
                                     backgroundColor: IntraZeroColors.danger,
                                   ),
                                 );
@@ -188,7 +214,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           }
                         },
                         title: const Text('Biometric Login'),
-                        subtitle: const Text('Use fingerprint or face ID to login'),
+                        subtitle:
+                            const Text('Use fingerprint or face ID to login'),
                         secondary: const Icon(Icons.fingerprint),
                       ),
                     ],
@@ -220,17 +247,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onTap: () async {
                           final email = 'support@intrazero.com';
                           final subject = 'Mobile App Issue Report';
-                          final body = 'Please describe the issue you encountered:';
+                          final body =
+                              'Please describe the issue you encountered:';
                           final uri = Uri(
                             scheme: 'mailto',
                             path: email,
-                            query: 'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+                            query:
+                                'subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
                           );
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
                           } else if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open email client')),
+                              const SnackBar(
+                                  content: Text('Could not open email client')),
                             );
                           }
                         },
@@ -240,12 +270,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         leading: const Icon(Icons.privacy_tip),
                         title: const Text('Privacy Policy'),
                         onTap: () async {
-                          final uri = Uri.parse('https://intrazero.com/privacy-policy');
+                          final uri =
+                              Uri.parse('https://intrazero.com/privacy-policy');
                           if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
                           } else if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open privacy policy')),
+                              const SnackBar(
+                                  content:
+                                      Text('Could not open privacy policy')),
                             );
                           }
                         },
@@ -255,12 +289,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         leading: const Icon(Icons.description),
                         title: const Text('Terms of Service'),
                         onTap: () async {
-                          final uri = Uri.parse('https://intrazero.com/terms-of-service');
+                          final uri = Uri.parse(
+                              'https://intrazero.com/terms-of-service');
                           if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            await launchUrl(uri,
+                                mode: LaunchMode.externalApplication);
                           } else if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not open terms of service')),
+                              const SnackBar(
+                                  content:
+                                      Text('Could not open terms of service')),
                             );
                           }
                         },
@@ -283,7 +321,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       const SizedBox(height: 20),
                       ListTile(
-                        leading: const Icon(Icons.logout, color: IntraZeroColors.danger),
+                        leading: const Icon(Icons.logout,
+                            color: IntraZeroColors.danger),
                         title: const Text(
                           'Logout',
                           style: TextStyle(
@@ -296,10 +335,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             context: context,
                             builder: (context) => AlertDialog(
                               title: const Text('Logout'),
-                              content: const Text('Are you sure you want to logout?'),
+                              content: const Text(
+                                  'Are you sure you want to logout?'),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
                                   child: const Text('Cancel'),
                                 ),
                                 TextButton(
@@ -312,9 +353,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ],
                             ),
                           );
-                          
+
                           if (shouldLogout == true && mounted) {
-                            final authNotifier = ref.read(currentUserProvider.notifier);
+                            final authNotifier =
+                                ref.read(currentUserProvider.notifier);
                             await authNotifier.logout();
                             if (mounted) {
                               Navigator.pushNamedAndRemoveUntil(
@@ -329,6 +371,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    'Version $_version',
+                    style: TextStyle(
+                      color: IntraZeroColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           );

@@ -162,7 +162,7 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  device_info_plus: 335f3ce08d2e174b9fdc3db3db0f4e3b1f66bd89
+  device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   Firebase: 0312a2352584f782ea56f66d91606891d4607f06
   firebase_core: 3b49a055ff54114cae400581c13671fe53936c36
   firebase_messaging: 394589dcda43e42ec9807558a409a975e285c45b

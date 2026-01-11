@@ -126,19 +126,85 @@ class _AttendanceHomeScreenState extends ConsumerState<AttendanceHomeScreen> {
           ),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Error: $error'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => attendanceNotifier.loadStatus(),
-                child: const Text('Retry'),
+        error: (error, stack) {
+          // Check if this is a holiday/weekend/not available message
+          final errorMessage = error.toString().toLowerCase();
+          final isHolidayOrWeekend = errorMessage.contains('holiday') ||
+              errorMessage.contains('weekend') ||
+              errorMessage.contains('not available') ||
+              errorMessage.contains('day off') ||
+              errorMessage.contains('closed') ||
+              errorMessage.contains('unavailable') ||
+              errorMessage.contains('off day');
+
+          if (isHolidayOrWeekend) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.event_busy,
+                      size: 80,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      error.toString(),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Enjoy your day off! 🎉',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.7),
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
+            );
+          }
+
+          // Regular error with retry button
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error: $error',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => attendanceNotifier.loadStatus(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
